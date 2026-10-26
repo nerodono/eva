@@ -1,0 +1,11 @@
+error: `#[int(<repr>, <ranges>)]` requires an enum; a struct takes `#[int(newtype)]`
+ --> tests/ui/int/struct-with-ranges.rs:2:1
+  |
+2 | struct Bit(u8);
+  | ^^^^^^
+
+error: `#[int(<repr>, <ranges>)]` requires an enum
+ --> tests/ui/int/struct-with-ranges.rs:5:1
+  |
+5 | union Bits {
+  | ^^^^^

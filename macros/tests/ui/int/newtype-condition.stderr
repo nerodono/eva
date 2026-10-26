@@ -1,0 +1,26 @@
+error: expected a condition over `n`, as in `newtype(n > 5)`
+ --> tests/ui/int/newtype-condition.rs:1:19
+  |
+1 | #[eva::int(newtype())]
+  |                   ^^
+
+error: unexpected token
+ --> tests/ui/int/newtype-condition.rs:4:26
+  |
+4 | #[eva::int(newtype(n > 1 extra))]
+  |                          ^^^^^
+
+error: unknown option `bogus`; expected one of: crate, not
+ --> tests/ui/int/newtype-condition.rs:7:28
+  |
+7 | #[eva::int(newtype(n > 1), bogus)]
+  |                            ^^^^^
+
+error[E0308]: mismatched types
+  --> tests/ui/int/newtype-condition.rs:10:20
+   |
+10 | #[eva::int(newtype(n + 1))]
+   | -------------------^^^^^---
+   | |                  |
+   | |                  expected `bool`, found `u8`
+   | expected due to this

@@ -1,0 +1,5 @@
+error: expected an integer, byte or char literal
+ --> tests/ui/int/unsupported-literal.rs:1:20
+  |
+1 | #[eva::int(u8, 0 | "1")]
+  |                    ^^^

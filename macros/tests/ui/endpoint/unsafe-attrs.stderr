@@ -1,0 +1,23 @@
+error: endpoint fn cannot take unsafe attributes: `#[endpoint]` turns it into `Endpoint::call`
+ --> tests/ui/endpoint/unsafe-attrs.rs:2:1
+  |
+2 | #[unsafe(no_mangle)]
+  | ^^^^^^^^^^^^^^^^^^^^
+
+error: endpoint fn cannot take unsafe attributes: `#[endpoint]` turns it into `Endpoint::call`
+ --> tests/ui/endpoint/unsafe-attrs.rs:6:1
+  |
+6 | #[unsafe(export_name = "renamed")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: endpoint fn cannot take unsafe attributes: `#[endpoint]` turns it into `Endpoint::call`
+ --> tests/ui/endpoint/unsafe-attrs.rs:7:1
+  |
+7 | #[unsafe(link_section = ".text.endpoint")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: endpoint fn cannot take unsafe attributes: `#[endpoint]` turns it into `Endpoint::call`
+  --> tests/ui/endpoint/unsafe-attrs.rs:12:1
+   |
+12 | #[no_mangle]
+   | ^^^^^^^^^^^^

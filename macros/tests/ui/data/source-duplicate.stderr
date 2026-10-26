@@ -1,0 +1,5 @@
+error: duplicate `#[source]`; a variant has at most one source
+ --> tests/ui/data/source-duplicate.rs:6:26
+  |
+6 |     Two(#[source] Inner, #[source] Inner),
+  |                          ^^^^^^^^^

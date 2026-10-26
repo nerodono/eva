@@ -1,0 +1,5 @@
+error: duplicate `#[from]`
+ --> tests/ui/data/from-duplicate.rs:3:15
+  |
+3 |     A(#[from] #[from] u8),
+  |               ^^^^^^^

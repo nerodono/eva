@@ -1,0 +1,5 @@
+error: endpoint fn must be `async`; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/not-async.rs:2:5
+  |
+2 | pub fn Blocking(state: (), args: ()) {}
+  |     ^^

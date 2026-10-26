@@ -1,0 +1,10 @@
+error: a `$crate` path cannot be passed to the schemars derive; opt out of it with `not(schemars)`
+ --> tests/ui/str/dollar-crate.rs:3:37
+  |
+3 |         #[eva::str(newtype, crate = $crate)]
+  |                                     ^^^^^^
+...
+8 | newtype!();
+  | ---------- in this macro invocation
+  |
+  = note: this error originates in the macro `newtype` (in Nightly builds, run with -Z macro-backtrace for more info)

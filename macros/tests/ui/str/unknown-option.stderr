@@ -1,0 +1,5 @@
+error: unknown option `bogus`; expected one of: copy, crate, not
+ --> tests/ui/str/unknown-option.rs:1:21
+  |
+1 | #[eva::str(newtype, bogus)]
+  |                     ^^^^^

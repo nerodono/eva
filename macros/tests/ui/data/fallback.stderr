@@ -1,0 +1,5 @@
+error: unknown option `bogus`; expected one of: error, copy, eq, ord, display, crate, not
+ --> tests/ui/data/fallback.rs:3:13
+  |
+3 | #[eva::data(bogus)]
+  |             ^^^^^

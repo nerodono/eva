@@ -1,0 +1,17 @@
+error: endpoint fn takes 2 parameters, state and args, but has 0; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/arity.rs:2:18
+  |
+2 | pub async fn Zero() {}
+  |                  ^^
+
+error: endpoint fn takes 2 parameters, state and args, but has 1; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/arity.rs:5:18
+  |
+5 | pub async fn One(state: ()) {}
+  |                  ^^^^^^^^^
+
+error: endpoint fn takes 2 parameters, state and args, but has 3; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/arity.rs:8:20
+  |
+8 | pub async fn Three(state: (), args: (), extra: ()) {}
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

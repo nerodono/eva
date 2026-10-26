@@ -1,0 +1,5 @@
+error: expected exactly one error type in Variant(Type)
+ --> tests/ui/service/error-alias-payload.rs:5:26
+  |
+5 |     #[errors(Failed(First, Second))]
+  |                          ^

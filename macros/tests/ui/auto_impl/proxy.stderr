@@ -1,0 +1,5 @@
+error: expected `&`, `&mut`, `Box`, `Rc` or `Arc`
+ --> tests/ui/auto_impl/proxy.rs:1:21
+  |
+1 | #[eva::auto_impl(&, Fn)]
+  |                     ^^

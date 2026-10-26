@@ -1,0 +1,11 @@
+error: `newtype` requires a struct
+ --> tests/ui/int/newtype-enum.rs:2:1
+  |
+2 | enum Kind {
+  | ^^^^
+
+error: `newtype` requires a struct
+ --> tests/ui/int/newtype-enum.rs:7:1
+  |
+7 | union Bits {
+  | ^^^^^

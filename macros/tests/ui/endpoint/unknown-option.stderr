@@ -1,0 +1,11 @@
+error: unknown option `bogus`; expected one of: crate
+ --> tests/ui/endpoint/unknown-option.rs:2:17
+  |
+2 | #[eva::endpoint(bogus)]
+  |                 ^^^^^
+
+error: endpoint fn must be `async`; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/unknown-option.rs:3:5
+  |
+3 | pub fn Noop(state: (), args: ()) {}
+  |     ^^

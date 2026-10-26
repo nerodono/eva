@@ -1,0 +1,5 @@
+error: duplicate option `copy`
+ --> tests/ui/str/duplicate-option.rs:1:27
+  |
+1 | #[eva::str(newtype, copy, copy)]
+  |                           ^^^^

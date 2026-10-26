@@ -1,0 +1,5 @@
+error: endpoint fn cannot be `const`; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/const.rs:2:5
+  |
+2 | pub const async fn Const(state: (), args: ()) {}
+  |     ^^^^^

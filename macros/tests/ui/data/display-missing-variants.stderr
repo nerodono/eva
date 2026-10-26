@@ -1,0 +1,11 @@
+error: variant `B` has no `#[display]`; annotate every variant or set a default with `#[data(display(...))]`
+ --> tests/ui/data/display-missing-variants.rs:5:5
+  |
+5 |     B(u8),
+  |     ^
+
+error: variant `C` has no `#[display]`; annotate every variant or set a default with `#[data(display(...))]`
+ --> tests/ui/data/display-missing-variants.rs:6:5
+  |
+6 |     C { x: u8 },
+  |     ^

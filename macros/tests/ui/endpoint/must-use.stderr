@@ -1,0 +1,5 @@
+error: `#[must_use]` has no effect on `Endpoint::call`
+ --> tests/ui/endpoint/must-use.rs:2:1
+  |
+2 | #[must_use = "the count"]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^

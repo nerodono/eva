@@ -1,0 +1,11 @@
+error: `not(pat)` only applies to `newtype`: `fixed` always implements `HasPattern` and `custom` never does
+ --> tests/ui/str/not-pat.rs:1:53
+  |
+1 | #[eva::str(fixed(error = eva::str::ParseError), not(pat))]
+  |                                                     ^^^
+
+error: `not(pat)` only applies to `newtype`: `fixed` always implements `HasPattern` and `custom` never does
+ --> tests/ui/str/not-pat.rs:4:24
+  |
+4 | #[eva::str(custom, not(pat))]
+  |                        ^^^

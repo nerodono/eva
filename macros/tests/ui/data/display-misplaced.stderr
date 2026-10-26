@@ -1,0 +1,23 @@
+error: `#[display]` belongs on enum variants; use `#[data(display(...))]` for the whole type
+ --> tests/ui/data/display-misplaced.rs:2:1
+  |
+2 | #[display("struct")]
+  | ^^^^^^^^^^^^^^^^^^^^
+
+error: `#[display]` belongs on enum variants; use `#[data(display(...))]` for the whole type
+ --> tests/ui/data/display-misplaced.rs:4:5
+  |
+4 |     #[display("field")]
+  |     ^^^^^^^^^^^^^^^^^^^
+
+error: `#[display]` belongs on enum variants; use `#[data(display(...))]` for the whole type
+ --> tests/ui/data/display-misplaced.rs:9:1
+  |
+9 | #[display("enum")]
+  | ^^^^^^^^^^^^^^^^^^
+
+error: `#[display]` belongs on enum variants; use `#[data(display(...))]` for the whole type
+  --> tests/ui/data/display-misplaced.rs:11:7
+   |
+11 |     A(#[display("variant field")] u8),
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^

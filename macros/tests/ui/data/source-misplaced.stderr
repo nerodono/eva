@@ -1,0 +1,11 @@
+error: `#[source]` belongs on a field
+ --> tests/ui/data/source-misplaced.rs:5:1
+  |
+5 | #[source]
+  | ^^^^^^^^^
+
+error: `#[source]` belongs on a field
+ --> tests/ui/data/source-misplaced.rs:7:5
+  |
+7 |     #[source]
+  |     ^^^^^^^^^

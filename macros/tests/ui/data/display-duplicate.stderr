@@ -1,0 +1,5 @@
+error: duplicate `#[display]`
+ --> tests/ui/data/display-duplicate.rs:4:5
+  |
+4 |     #[display("second")]
+  |     ^^^^^^^^^^^^^^^^^^^^

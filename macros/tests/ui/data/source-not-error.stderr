@@ -1,0 +1,37 @@
+error[E0599]: the method `as_dyn_error` exists for reference `&String`, but its trait bounds were not satisfied
+ --> tests/ui/data/source-not-error.rs:2:27
+  |
+2 | pub struct Text(#[source] String);
+  |                           ^^^^^^ method cannot be called on `&String` due to unsatisfied trait bounds
+  |
+ ::: $RUST/alloc/src/string.rs
+  |
+  | pub struct String {
+  | ----------------- doesn't satisfy `String: eva::_priv::AsDynError<'_>` or `String: std::error::Error`
+  |
+  = note: the following trait bounds were not satisfied:
+          `String: std::error::Error`
+          which is required by `String: eva::_priv::AsDynError<'_>`
+          `&String: std::error::Error`
+          which is required by `&String: eva::_priv::AsDynError<'_>`
+          `str: Sized`
+          which is required by `str: eva::_priv::AsDynError<'_>`
+          `str: std::error::Error`
+          which is required by `str: eva::_priv::AsDynError<'_>`
+
+error[E0599]: the method `as_dyn_error` exists for reference `&E`, but its trait bounds were not satisfied
+ --> tests/ui/data/source-not-error.rs:6:21
+  |
+6 |     Inner(#[source] E),
+  |                     ^ method cannot be called on `&E` due to unsatisfied trait bounds
+  |
+  = note: the following trait bounds were not satisfied:
+          `E: std::error::Error`
+          which is required by `E: eva::_priv::AsDynError<'_>`
+          `&E: std::error::Error`
+          which is required by `&E: eva::_priv::AsDynError<'_>`
+  = help: items from traits can only be used if the type parameter is bounded by the trait
+help: the following trait defines an item `as_dyn_error`, perhaps you need to restrict type parameter `E` with it:
+  |
+5 | pub enum Generic<E: std::fmt::Debug + eva::_priv::AsDynError</* 'a */>> {
+  |                                     ++++++++++++++++++++++++++++++++++

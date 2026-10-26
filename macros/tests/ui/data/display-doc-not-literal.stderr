@@ -1,0 +1,5 @@
+error: `display(doc)` needs literal doc comments
+ --> tests/ui/data/display-doc-not-literal.rs:3:13
+  |
+3 |     #[doc = concat!("computed", " docs")]
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

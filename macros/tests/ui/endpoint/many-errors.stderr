@@ -1,0 +1,41 @@
+error: endpoint fn cannot be `const`; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/many-errors.rs:2:5
+  |
+2 | pub const unsafe extern "C" fn Many<T>(state: impl Send) -> impl Send {}
+  |     ^^^^^
+
+error: endpoint fn cannot be `unsafe` because `Endpoint::call` is safe; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/many-errors.rs:2:11
+  |
+2 | pub const unsafe extern "C" fn Many<T>(state: impl Send) -> impl Send {}
+  |           ^^^^^^
+
+error: endpoint fn cannot have an ABI; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/many-errors.rs:2:18
+  |
+2 | pub const unsafe extern "C" fn Many<T>(state: impl Send) -> impl Send {}
+  |                  ^^^^^^^^^^
+
+error: endpoint fn must be `async`; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/many-errors.rs:2:29
+  |
+2 | pub const unsafe extern "C" fn Many<T>(state: impl Send) -> impl Send {}
+  |                             ^^
+
+error: `impl Trait` is not allowed in endpoint parameters (use a generic parameter); expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/many-errors.rs:2:47
+  |
+2 | pub const unsafe extern "C" fn Many<T>(state: impl Send) -> impl Send {}
+  |                                               ^^^^
+
+error: endpoint fn takes 2 parameters, state and args, but has 1; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/many-errors.rs:2:40
+  |
+2 | pub const unsafe extern "C" fn Many<T>(state: impl Send) -> impl Send {}
+  |                                        ^^^^^^^^^^^^^^^^
+
+error: `impl Trait` is not allowed in the endpoint return type (use a concrete type); expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/many-errors.rs:2:61
+  |
+2 | pub const unsafe extern "C" fn Many<T>(state: impl Send) -> impl Send {}
+  |                                                             ^^^^

@@ -1,0 +1,11 @@
+error: `name` takes no arguments
+ --> tests/ui/data/display-mode-args.rs:1:25
+  |
+1 | #[eva::data(display(name, extra))]
+  |                         ^^^^^^^
+
+error: `doc` takes no arguments
+ --> tests/ui/data/display-mode-args.rs:8:18
+  |
+8 |     #[display(doc, "extra", 1)]
+  |                  ^^^^^^^^^^^^

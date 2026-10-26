@@ -1,0 +1,5 @@
+error: #[int] enums cannot be generic
+ --> tests/ui/int/generics.rs:2:13
+  |
+2 | pub enum Bit<T> {}
+  |             ^^^

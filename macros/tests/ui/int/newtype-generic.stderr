@@ -1,0 +1,12 @@
+error: #[int] types cannot be generic
+ --> tests/ui/int/newtype-generic.rs:2:15
+  |
+2 | struct Wrapper<T>(T);
+  |               ^^^
+
+error: #[int] types cannot have a where clause
+ --> tests/ui/int/newtype-generic.rs:6:1
+  |
+6 | / where
+7 | |     u8: Copy;
+  | |____________^

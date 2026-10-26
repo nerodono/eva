@@ -1,0 +1,5 @@
+error: expected a plain argument name
+ --> tests/ui/auto_impl/pattern.rs:3:19
+  |
+3 |     fn sum(&self, (a, b): (u32, u32)) -> u32 {
+  |                   ^^^^^^

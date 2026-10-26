@@ -1,0 +1,5 @@
+error: `fixed` lays the fields out with `#[repr(C)]` itself; remove this attribute
+ --> tests/ui/str/fixed-repr.rs:4:1
+  |
+4 | #[repr(align(2))]
+  | ^^^^^^^^^^^^^^^^^

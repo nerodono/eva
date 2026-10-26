@@ -1,0 +1,11 @@
+error: empty range
+ --> tests/ui/int/empty-range.rs:1:16
+  |
+1 | #[eva::int(u8, 5..5 | 7..=3)]
+  |                ^^^^
+
+error: empty range
+ --> tests/ui/int/empty-range.rs:1:23
+  |
+1 | #[eva::int(u8, 5..5 | 7..=3)]
+  |                       ^^^^^

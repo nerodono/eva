@@ -1,0 +1,5 @@
+error: unknown option `Hash`; expected one of: serde, Serialize, Deserialize, schemars, JsonSchema, Debug, Clone, PartialEq, as_static_str
+ --> tests/ui/data/unknown-not.rs:1:24
+  |
+1 | #[eva::data(not(Debug, Hash))]
+  |                        ^^^^

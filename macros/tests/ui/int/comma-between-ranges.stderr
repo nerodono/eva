@@ -1,0 +1,5 @@
+error: separate ranges with `|`
+ --> tests/ui/int/comma-between-ranges.rs:1:21
+  |
+1 | #[eva::int(u8, 0..=3, 5..=6)]
+  |                     ^

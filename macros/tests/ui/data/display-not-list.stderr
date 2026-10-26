@@ -1,0 +1,11 @@
+error: expected attribute arguments in parentheses: #[display(...)]
+ --> tests/ui/data/display-not-list.rs:3:7
+  |
+3 |     #[display]
+  |       ^^^^^^^
+
+error: expected parentheses: #[display(...)]
+ --> tests/ui/data/display-not-list.rs:5:15
+  |
+5 |     #[display = "value"]
+  |               ^

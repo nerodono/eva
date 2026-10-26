@@ -1,0 +1,23 @@
+error: the condition sees the value as `n`; there is no `self` yet
+ --> tests/ui/int/newtype-condition-self.rs:1:20
+  |
+1 | #[eva::int(newtype(self.0 > 1))]
+  |                    ^^^^
+
+error: the condition follows `newtype` directly, as in `newtype(n > 5)`
+ --> tests/ui/int/newtype-condition-self.rs:4:19
+  |
+4 | #[eva::int(newtype, (n > 1))]
+  |                   ^
+
+error: `#[int(<repr>, <ranges>)]` requires an enum
+ --> tests/ui/int/newtype-condition-self.rs:8:1
+  |
+8 | struct Late(u16);
+  | ^^^^^^
+
+error: expected `newtype` or the repr, one of: u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
+ --> tests/ui/int/newtype-condition-self.rs:7:12
+  |
+7 | #[eva::int(crate = ::eva, newtype)]
+  |            ^^^^^

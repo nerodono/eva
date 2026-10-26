@@ -1,0 +1,5 @@
+error: endpoint fn cannot be variadic; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/variadic.rs:2:44
+  |
+2 | pub async fn Variadic(state: (), args: (), rest: ...) {}
+  |                                            ^^^^^^^^^

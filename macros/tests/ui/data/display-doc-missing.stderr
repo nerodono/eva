@@ -1,0 +1,11 @@
+error: `display(doc)` needs a doc comment on this variant
+ --> tests/ui/data/display-doc-missing.rs:5:5
+  |
+5 |     B,
+  |     ^
+
+error: `display(doc)` needs a doc comment on this variant
+  --> tests/ui/data/display-doc-missing.rs:11:5
+   |
+11 |     A,
+   |     ^

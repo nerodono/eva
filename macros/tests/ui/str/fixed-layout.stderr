@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: every field of a `fixed` string must have alignment 1
+  --> tests/ui/str/fixed-layout.rs:26:19
+   |
+26 | pub struct Padded(Wide);
+   |                   ^^^^ evaluation of `_` failed here

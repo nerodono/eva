@@ -1,0 +1,7 @@
+error: only structs and enums are supported
+ --> tests/ui/data/not-struct-or-enum.rs:2:1
+  |
+2 | / pub union Bits {
+3 | |     a: u8,
+4 | | }
+  | |_^

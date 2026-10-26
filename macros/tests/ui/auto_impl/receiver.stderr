@@ -1,0 +1,11 @@
+error: this receiver cannot be forwarded through `&`
+ --> tests/ui/auto_impl/receiver.rs:3:13
+  |
+3 |     fn bump(&mut self);
+  |             ^
+
+error: this receiver cannot be forwarded through `Rc`
+ --> tests/ui/auto_impl/receiver.rs:3:13
+  |
+3 |     fn bump(&mut self);
+  |             ^

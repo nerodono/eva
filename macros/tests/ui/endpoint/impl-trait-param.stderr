@@ -1,0 +1,5 @@
+error: `impl Trait` is not allowed in endpoint parameters (use a generic parameter); expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/impl-trait-param.rs:2:45
+  |
+2 | pub async fn ImplParam(state: (), args: Vec<impl Send>) {}
+  |                                             ^^^^

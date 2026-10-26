@@ -1,0 +1,11 @@
+error: use of deprecated function `old_api`
+ --> tests/ui/endpoint/deprecated-body.rs:9:5
+  |
+9 |     old_api();
+  |     ^^^^^^^
+  |
+note: the lint level is defined here
+ --> tests/ui/endpoint/deprecated-body.rs:1:9
+  |
+1 | #![deny(deprecated)]
+  |         ^^^^^^^^^^

@@ -1,0 +1,11 @@
+error: `fixed` requires an error type: `fixed(error = Type)`
+ --> tests/ui/str/fixed-error-type.rs:3:12
+  |
+3 | #[eva::str(fixed)]
+  |            ^^^^^
+
+error: `fixed` requires an error type: `fixed(error = Type)`
+ --> tests/ui/str/fixed-error-type.rs:6:17
+  |
+6 | #[eva::str(fixed(), copy)]
+  |                 ^^

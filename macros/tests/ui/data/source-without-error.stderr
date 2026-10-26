@@ -1,0 +1,5 @@
+error: `#[source]` requires `#[data(error)]`
+ --> tests/ui/data/source-without-error.rs:5:18
+  |
+5 | pub struct Outer(#[source] Inner);
+  |                  ^^^^^^^^^

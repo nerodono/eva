@@ -1,0 +1,5 @@
+error: duplicate option `not`
+ --> tests/ui/int/duplicate-option.rs:1:35
+  |
+1 | #[eva::int(u8, 0..=1, not(serde), not(schemars))]
+  |                                   ^^^

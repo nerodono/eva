@@ -1,0 +1,17 @@
+error: expected a format string, `name` or `doc`
+ --> tests/ui/data/display-expected.rs:1:21
+  |
+1 | #[eva::data(display())]
+  |                     ^
+
+error: expected a format string, `name` or `doc`
+ --> tests/ui/data/display-expected.rs:4:21
+  |
+4 | #[eva::data(display(nmae))]
+  |                     ^^^^
+
+error: expected a format string, `name` or `doc`
+  --> tests/ui/data/display-expected.rs:11:15
+   |
+11 |     #[display(concat!("a", "b"))]
+   |               ^^^^^^

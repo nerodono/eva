@@ -1,0 +1,11 @@
+error: `#[from]` takes no arguments
+ --> tests/ui/data/from-args.rs:3:12
+  |
+3 |     List(#[from(u8)] u8),
+  |            ^^^^^^^^
+
+error: `#[from]` takes no arguments
+ --> tests/ui/data/from-args.rs:4:13
+  |
+4 |     Value(#[from = "u16"] u16),
+  |             ^^^^^^^^^^^^

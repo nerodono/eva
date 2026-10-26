@@ -1,0 +1,5 @@
+error: `not(as_static_str)` only applies to enums
+ --> tests/ui/data/not-as-static-str-struct.rs:1:17
+  |
+1 | #[eva::data(not(as_static_str))]
+  |                 ^^^^^^^^^^^^^

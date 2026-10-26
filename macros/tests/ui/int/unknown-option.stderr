@@ -1,0 +1,5 @@
+error: unknown option `bogus`; expected one of: crate, not
+ --> tests/ui/int/unknown-option.rs:1:23
+  |
+1 | #[eva::int(u8, 0..=1, bogus)]
+  |                       ^^^^^

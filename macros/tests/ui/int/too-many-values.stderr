@@ -1,0 +1,5 @@
+error: 4097 values; #[int] supports at most 4096
+ --> tests/ui/int/too-many-values.rs:1:17
+  |
+1 | #[eva::int(u16, 0..=1000 | 1001..=4096)]
+  |                 ^^^^^^^^^^^^^^^^^^^^^^

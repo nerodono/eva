@@ -1,0 +1,6 @@
+error: #[int] generates the variants; leave the enum body empty
+ --> tests/ui/int/variants.rs:3:5
+  |
+3 | /     Zero,
+4 | |     One,
+  | |________^

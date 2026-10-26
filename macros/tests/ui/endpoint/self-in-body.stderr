@@ -1,0 +1,8 @@
+error[E0424]: expected value, found module `self`
+ --> tests/ui/endpoint/self-in-body.rs:3:13
+  |
+1 | #[eva::endpoint]
+  | ---------------- this function has a `self` parameter, but a macro invocation can only access identifiers it receives from parameters
+2 | pub async fn UsesSelf(_state: (), _args: ()) {
+3 |     let _ = self;
+  |             ^^^^ `self` value is a keyword only available in methods with a `self` parameter

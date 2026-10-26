@@ -1,0 +1,17 @@
+error: `newtype` requires exactly one field
+ --> tests/ui/str/newtype-one-field.rs:4:15
+  |
+4 | pub struct Two(CompactString, u8);
+  |               ^^^^^^^^^^^^^^^^^^^
+
+error: `newtype` requires exactly one field
+ --> tests/ui/str/newtype-one-field.rs:7:12
+  |
+7 | pub struct Unit;
+  |            ^^^^
+
+error: `newtype` requires exactly one field
+  --> tests/ui/str/newtype-one-field.rs:10:18
+   |
+10 | pub struct Empty {}
+   |                  ^^

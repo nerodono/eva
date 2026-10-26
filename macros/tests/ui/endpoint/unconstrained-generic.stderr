@@ -1,0 +1,41 @@
+error: generic parameter `T` must appear in the state or args type; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/unconstrained-generic.rs:2:25
+  |
+2 | pub async fn ReturnOnly<T: Default>(state: (), args: ()) -> T {
+  |                         ^
+
+error: generic parameter `'a` must appear in the state or args type; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/unconstrained-generic.rs:7:29
+  |
+7 | pub async fn UnusedLifetime<'a>(state: (), args: ()) {}
+  |                             ^^
+
+error: generic parameter `N` must appear in the state or args type; expected `async fn Name(state: S, args: A) -> O`
+  --> tests/ui/endpoint/unconstrained-generic.rs:10:29
+   |
+10 | pub async fn BodyOnly<const N: usize>(state: (), args: ()) -> usize {
+   |                             ^
+
+error: generic parameter `T` must appear in the state or args type; expected `async fn Name(state: S, args: A) -> O`
+  --> tests/ui/endpoint/unconstrained-generic.rs:15:29
+   |
+15 | pub async fn ProjectionOnly<T: std::str::FromStr>(state: (), args: T::Err) {}
+   |                             ^
+
+error: generic parameter `T` must appear in the state or args type; expected `async fn Name(state: S, args: A) -> O`
+  --> tests/ui/endpoint/unconstrained-generic.rs:22:25
+   |
+22 | pub async fn ModulePath<T>(state: (), args: m::T) {}
+   |                         ^
+
+error: generic parameter `T` must appear in the state or args type; expected `async fn Name(state: S, args: A) -> O`
+  --> tests/ui/endpoint/unconstrained-generic.rs:25:28
+   |
+25 | pub async fn QualifiedSelf<T>(state: (), args: <Vec<T> as IntoIterator>::IntoIter) {}
+   |                            ^
+
+error: generic parameter `T` must appear in the state or args type; expected `async fn Name(state: S, args: A) -> O`
+  --> tests/ui/endpoint/unconstrained-generic.rs:28:24
+   |
+28 | pub async fn WhereOnly<T>(state: (), args: ())
+   |                        ^

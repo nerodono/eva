@@ -1,0 +1,5 @@
+error: unknown option `Clone`; expected one of: serde, Serialize, Deserialize, schemars, JsonSchema, Debug, Display
+ --> tests/ui/int/unknown-not.rs:1:27
+  |
+1 | #[eva::int(u8, 0..=1, not(Clone))]
+  |                           ^^^^^

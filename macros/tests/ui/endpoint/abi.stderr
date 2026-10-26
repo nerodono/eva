@@ -1,0 +1,5 @@
+error: endpoint fn cannot have an ABI; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/abi.rs:2:11
+  |
+2 | pub async extern "C" fn Abi(state: (), args: ()) {}
+  |           ^^^^^^^^^^

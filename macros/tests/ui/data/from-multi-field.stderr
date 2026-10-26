@@ -1,0 +1,11 @@
+error: `#[from]` needs the variant to have exactly one field
+ --> tests/ui/data/from-multi-field.rs:3:9
+  |
+3 |     Two(#[from] u8, u16),
+  |         ^^^^^^^
+
+error: `#[from]` needs the struct to have exactly one field
+ --> tests/ui/data/from-multi-field.rs:8:5
+  |
+8 |     #[from]
+  |     ^^^^^^^

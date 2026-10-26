@@ -1,0 +1,11 @@
+error: `not(schemars)` has no effect: `custom` never implements `JsonSchema`
+ --> tests/ui/str/custom-not-schemars.rs:1:24
+  |
+1 | #[eva::str(custom, not(schemars, JsonSchema))]
+  |                        ^^^^^^^^
+
+error: `not(JsonSchema)` has no effect: `custom` never implements `JsonSchema`
+ --> tests/ui/str/custom-not-schemars.rs:1:34
+  |
+1 | #[eva::str(custom, not(schemars, JsonSchema))]
+  |                                  ^^^^^^^^^^

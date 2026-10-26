@@ -1,0 +1,10 @@
+error: a `$crate` path cannot be passed to the serde and schemars derives; opt out of them with `not(...)`
+ --> tests/ui/data/dollar-crate-serde.rs:3:29
+  |
+3 |         #[eva::data(crate = $crate, not(serde))]
+  |                             ^^^^^^
+...
+8 | define!(Unit);
+  | ------------- in this macro invocation
+  |
+  = note: this error originates in the macro `define` (in Nightly builds, run with -Z macro-backtrace for more info)

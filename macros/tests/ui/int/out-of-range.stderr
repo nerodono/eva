@@ -1,0 +1,35 @@
+error: 300 is out of range for u8 (0..=255)
+ --> tests/ui/int/out-of-range.rs:1:16
+  |
+1 | #[eva::int(u8, 300 | -1..=5 | 'я')]
+  |                ^^^
+
+error: -1 is out of range for u8 (0..=255)
+ --> tests/ui/int/out-of-range.rs:1:22
+  |
+1 | #[eva::int(u8, 300 | -1..=5 | 'я')]
+  |                      ^^
+
+error: 'я' (1103) is out of range for u8 (0..=255)
+ --> tests/ui/int/out-of-range.rs:1:31
+  |
+1 | #[eva::int(u8, 300 | -1..=5 | 'я')]
+  |                               ^^^
+
+error: b'\xff' (255) is out of range for i8 (-128..=127)
+ --> tests/ui/int/out-of-range.rs:4:16
+  |
+4 | #[eva::int(i8, b'\xff' | -129)]
+  |                ^^^^^^^
+
+error: -129 is out of range for i8 (-128..=127)
+ --> tests/ui/int/out-of-range.rs:4:26
+  |
+4 | #[eva::int(i8, b'\xff' | -129)]
+  |                          ^^^^
+
+error: 340282366920938463463374607431768211455 is out of range for u128 (0..=i128::MAX)
+ --> tests/ui/int/out-of-range.rs:7:18
+  |
+7 | #[eva::int(u128, 340282366920938463463374607431768211455)]
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,14 @@
+error[E0599]: no function or associated item named `as_str` found for struct `Custom` in the current scope
+ --> tests/ui/str/custom-no-as-str.rs:2:12
+  |
+2 | pub struct Custom(String);
+  | -----------^^^^^^
+  | |          |
+  | |          function or associated item not found in `Custom`
+  | function or associated item `as_str` not found for this struct
+  |
+help: the function `as_str` is implemented on `str`
+  |
+2 - pub struct Custom(String);
+2 + pub struct str(String);
+  |

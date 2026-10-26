@@ -1,0 +1,5 @@
+error: `#[source]` takes no arguments
+ --> tests/ui/data/source-args.rs:5:20
+  |
+5 | pub struct Outer(#[source(inner)] Inner);
+  |                    ^^^^^^^^^^^^^

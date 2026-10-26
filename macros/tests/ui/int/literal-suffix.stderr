@@ -1,0 +1,11 @@
+error: suffix `u16` does not match the repr `u8`
+ --> tests/ui/int/literal-suffix.rs:1:16
+  |
+1 | #[eva::int(u8, 5u16 | b'a'x)]
+  |                ^^^^
+
+error: unexpected suffix `x`; byte and char literals take none
+ --> tests/ui/int/literal-suffix.rs:1:23
+  |
+1 | #[eva::int(u8, 5u16 | b'a'x)]
+  |                       ^^^^^

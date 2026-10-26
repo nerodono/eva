@@ -1,0 +1,25 @@
+error: expected `, <ranges>` after the repr, as in `#[int(u8, 0..=9)]`
+ --> tests/ui/int/missing-ranges.rs:1:12
+  |
+1 | #[eva::int(u8)]
+  |            ^^
+
+error: expected ranges after `,`
+ --> tests/ui/int/missing-ranges.rs:4:14
+  |
+4 | #[eva::int(u8,)]
+  |              ^
+
+error: expected a range after `|`
+ --> tests/ui/int/missing-ranges.rs:7:18
+  |
+7 | #[eva::int(u8, 0 |)]
+  |                  ^
+
+error: expected `newtype` or the repr, one of: u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
+  --> tests/ui/int/missing-ranges.rs:10:1
+   |
+10 | #[eva::int]
+   | ^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `eva::int` (in Nightly builds, run with -Z macro-backtrace for more info)

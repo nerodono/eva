@@ -1,0 +1,5 @@
+error: duplicate error variant; rename it with `Variant(path::Error)`
+ --> tests/ui/service/error-alias-duplicate.rs:5:29
+  |
+5 |     #[errors(first::Failed, Failed(second::Error))]
+  |                             ^^^^^^

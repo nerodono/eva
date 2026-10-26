@@ -1,0 +1,60 @@
+error[E0277]: the trait bound `eva::str::ParseError: From<ParseIntError>` is not satisfied
+ --> tests/ui/str/fixed-not-fixed-utf8.rs:4:30
+  |
+4 | pub struct Pin(ascii::Digit, u16);
+  |                              ^^^ the trait `From<ParseIntError>` is not implemented for `eva::str::ParseError`
+  |
+  = help: see issue #48214
+
+error[E0277]: the trait bound `u16: FixedUtf8` is not satisfied
+ --> tests/ui/str/fixed-not-fixed-utf8.rs:4:30
+  |
+4 | pub struct Pin(ascii::Digit, u16);
+  |                              ^^^ the trait `FixedUtf8` is not implemented for `u16`
+  |
+  = help: the following other types implement trait `FixedUtf8`:
+            Control
+            DateStr
+            DayStr
+            Digit
+            Dot
+            Hex<IH, SIZE>
+            HexChar
+            HoursStr
+          and $N others
+  = help: see issue #48214
+
+error[E0277]: the trait bound `ParseIntError: FixedParseError` is not satisfied
+ --> tests/ui/str/fixed-not-fixed-utf8.rs:4:30
+  |
+4 | pub struct Pin(ascii::Digit, u16);
+  |                              ^^^ the trait `FixedParseError` is not implemented for `ParseIntError`
+  |
+help: the trait `FixedParseError` is implemented for `eva::str::ParseError`
+ --> $WORKSPACE/src/str/mod.rs
+  |
+  | impl FixedParseError for ParseError {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = help: see issue #48214
+
+error[E0277]: the trait bound `u16: FixedUtf8` is not satisfied
+ --> tests/ui/str/fixed-not-fixed-utf8.rs:4:30
+  |
+4 | pub struct Pin(ascii::Digit, u16);
+  |                              ^^^ the trait `FixedUtf8` is not implemented for `u16`
+  |
+  = help: the following other types implement trait `FixedUtf8`:
+            Control
+            DateStr
+            DayStr
+            Digit
+            Dot
+            Hex<IH, SIZE>
+            HexChar
+            HoursStr
+          and $N others
+note: required by a bound in `eva::str::fixed_align`
+ --> $WORKSPACE/src/str/mod.rs
+  |
+  | pub const fn fixed_align<T: FixedUtf8>() -> usize {
+  |                             ^^^^^^^^^ required by this bound in `fixed_align`

@@ -1,0 +1,5 @@
+error: unsupported repr `usize`; expected `newtype` or one of: u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
+ --> tests/ui/int/unsupported-repr.rs:1:12
+  |
+1 | #[eva::int(usize, 0..=1)]
+  |            ^^^^^

@@ -1,0 +1,5 @@
+error: endpoint fn cannot take `self`; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/receiver.rs:5:27
+  |
+5 |     pub async fn Receiver(&self, args: ()) {}
+  |                           ^^^^^

@@ -1,0 +1,5 @@
+error: the first argument must be the kind: `newtype`, `custom` or `fixed(error = Type)`
+ --> tests/ui/str/kind-first.rs:1:12
+  |
+1 | #[eva::str(copy, newtype)]
+  |            ^^^^

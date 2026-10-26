@@ -1,0 +1,5 @@
+error: expected the end of the range
+ --> tests/ui/int/open-range.rs:1:17
+  |
+1 | #[eva::int(u8, 0.. | 7)]
+  |                 ^^

@@ -1,0 +1,21 @@
+error: `newtype` requires exactly one field
+ --> tests/ui/int/newtype-fields.rs:2:11
+  |
+2 | struct Two(u8, u8);
+  |           ^^^^^^^^
+
+error: `newtype` requires exactly one field
+ --> tests/ui/int/newtype-fields.rs:5:8
+  |
+5 | struct Unit;
+  |        ^^^^
+
+error: `newtype` requires exactly one field
+  --> tests/ui/int/newtype-fields.rs:8:14
+   |
+ 8 |   struct Named {
+   |  ______________^
+ 9 | |     a: u8,
+10 | |     b: u8,
+11 | | }
+   | |_^

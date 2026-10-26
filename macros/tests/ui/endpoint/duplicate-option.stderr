@@ -1,0 +1,5 @@
+error: duplicate option `crate`
+ --> tests/ui/endpoint/duplicate-option.rs:1:32
+  |
+1 | #[eva::endpoint(crate = ::eva, crate = ::eva)]
+  |                                ^^^^^

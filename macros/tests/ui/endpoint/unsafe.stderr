@@ -1,0 +1,5 @@
+error: endpoint fn cannot be `unsafe` because `Endpoint::call` is safe; expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/unsafe.rs:2:11
+  |
+2 | pub async unsafe fn Unsafe(state: (), args: ()) {}
+  |           ^^^^^^

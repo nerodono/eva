@@ -1,0 +1,5 @@
+error: `impl Trait` is not allowed in the endpoint return type (use a concrete type); expected `async fn Name(state: S, args: A) -> O`
+ --> tests/ui/endpoint/impl-trait-return.rs:2:49
+  |
+2 | pub async fn ImplReturn(state: (), args: ()) -> impl Send {}
+  |                                                 ^^^^

@@ -1,0 +1,11 @@
+error: byte and char literals cannot be negative
+ --> tests/ui/int/negative-byte-char.rs:1:16
+  |
+1 | #[eva::int(i8, -b'a')]
+  |                ^^^^^
+
+error: byte and char literals cannot be negative
+ --> tests/ui/int/negative-byte-char.rs:4:21
+  |
+4 | #[eva::int(i32, 0 | -'a'..='z')]
+  |                     ^^^^

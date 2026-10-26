@@ -1,0 +1,5 @@
+error: #[int(newtype)] adds `#[repr(transparent)]`; remove this `#[repr]`
+ --> tests/ui/int/newtype-repr.rs:2:1
+  |
+2 | #[repr(C)]
+  | ^^^^^^^^^^

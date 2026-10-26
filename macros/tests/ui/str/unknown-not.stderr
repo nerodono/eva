@@ -1,0 +1,5 @@
+error: unknown option `Hash`; expected one of: serde, Serialize, Deserialize, schemars, JsonSchema, Debug, Display, pat
+ --> tests/ui/str/unknown-not.rs:1:25
+  |
+1 | #[eva::str(newtype, not(Hash))]
+  |                         ^^^^

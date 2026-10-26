@@ -1,0 +1,11 @@
+error: `#[from]` belongs on the only field of a struct or variant
+ --> tests/ui/data/from-misplaced.rs:2:1
+  |
+2 | #[from]
+  | ^^^^^^^
+
+error: `#[from]` belongs on the only field of a struct or variant
+ --> tests/ui/data/from-misplaced.rs:7:5
+  |
+7 |     #[from]
+  |     ^^^^^^^
