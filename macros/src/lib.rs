@@ -9,6 +9,7 @@ mod auto_impl;
 mod data;
 mod endpoint;
 mod export;
+mod flags;
 mod int;
 mod service;
 mod str;
@@ -789,7 +790,7 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 ///     fn create(name: String) -> ok! { id: u64 };
 /// }
 ///
-/// #[export]
+/// #[export(flags(write))]
 /// pub struct Session {
 ///     users: Users,
 /// }
@@ -844,12 +845,16 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 /// `#[service(error = path::Error)]` selects one shared error type for all methods;
 /// `#[error(path::Error)]` selects an existing error type for one method.
 ///
+/// `#[flags(write, stream)]` tags a method for metadata consumers; the session's
+/// `#[export(flags(...))]` declares which flags exist.
+///
 /// `Output` defaults to `Result<Ok, Err>`. `#[service(result = path::Response)]` uses
 /// a different two-parameter result constructor, such as `Result<O, Generic<E>>`.
 ///
 /// Generated data uses `#[eva::data]`. `#[args(...)]` and `#[err(...)]` forward
 /// attributes to the corresponding type; attributes inside `ok!` customize `Ok`.
-/// A supplied `data(...)` replaces its default configuration. A stream argument can use
+/// A supplied `data(...)` replaces its default configuration, except that `Err` always
+/// keeps `error`. A stream argument can use
 /// `#[args(data(not(Debug, serde, schemars, Clone, PartialEq)))]`. Argument and
 /// `ok!` field attributes are preserved, including serde defaults and documentation.
 ///
@@ -858,7 +863,8 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 /// In method declarations, `this![...]` prefixes its contents with that method's
 /// path. It accepts tokens, including generic arguments and nested paths, rather
 /// than just an identifier. All three helpers (`ok!`, `this!`, `embed!`) are
-/// consumed by `service` and need no imports.
+/// consumed by `service` and need no imports. Inside the method module `Ok` and `Err`
+/// name the generated types, so embedded code spells `Result::Ok` and `Result::Err`.
 ///
 /// ```rust
 /// use eva::service;
@@ -874,9 +880,11 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 /// # fn main() {}
 /// ```
 ///
-/// Middleware is assembled with the concrete implementation. An endpoint expression
-/// such as `LogCall("users.get").apply(handlers::Get)` can be bound to state wherever
-/// a plain endpoint can. Service declarations and client calls need no changes.
+/// Each `Trait` method returns a `CallStep`, and that is where the binding attaches
+/// middleware: it wraps the endpoint in `Handler`s, e.g.
+/// `LogCall("users.get").then(Auth).apply(handlers::Get)`, and binds the result to state.
+/// Service declarations and client calls need no changes. `eva::handling::step` turns a
+/// closure into a `CallStep` for hand-written implementations.
 #[proc_macro_attribute]
 pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
     run(args, item, service::expand, |_| TokenStream2::new())
@@ -913,33 +921,39 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
 /// The macro has a hidden companion module of the same name; the same `pub use`
 /// re-exports both, keeping metadata paths valid across crates and dependency renames.
 ///
+/// `#[export(flags(write, stream))]` declares the method flags the services may use;
+/// any other flag is a compile error at its `#[flags(...)]`.
+///
 /// ```ignore
 /// macro_rules! project {
 ///     ($(
-///         $segment:ident {$(
-///             $accessor:ident: $Name:ident {
-///                 trait: $Trait:path,
-///                 client: $Client:path,
-///                 $(
-///                     $(#[$flag:ident])*
-///                     $method:ident = $endpoint:ident $(<$lt:lifetime>)? {
-///                         args: $Args:ty,
-///                         ok: $Ok:ty,
-///                         err: $Err:ty,
-///                         output: $Output:ty,
-///                         docs: [$($doc:literal),*],
-///                     }
-///                 )*
-///             }
-///         )*}
+///         $accessor:ident {
+///             trait: $Trait:path,
+///             client: $Client:path,
+///             methods: {$(
+///                 $method:ident {
+///                     flags: [$($flag:ident),*],
+///                     lifetimes: [$($lt:lifetime),*],
+///                     args: $Args:ty,
+///                     ok: $Ok:ty,
+///                     err: $Err:ty,
+///                     output: $Output:ty,
+///                     docs: [$($doc:literal),*],
+///                     $($method_extra:tt)*
+///                 }
+///             )*},
+///             $($extra:tt)*
+///         }
 ///     )*) => { /* implementations, transport routes, tools, etc. */ };
 /// }
 /// for_each_endpoint!(project);
 /// ```
 ///
-/// Segments use the explicitly declared accessor names. Trait and client paths are
-/// provided directly; callbacks do not have to reconstruct them. Method flags and
-/// documentation come from `#[service]`, so no second method registry is needed.
+/// The trailing `tt` captures keep callbacks matching when the metadata gains fields.
+/// `fn $method<$($lt),*>(&mut self)` accepts an empty lifetime list. Test flags with
+/// [`if_flag!`](macro@if_flag). Trait and client paths are provided directly; callbacks do
+/// not have to reconstruct them. Method flags and documentation come from `#[service]`,
+/// so no second method registry is needed.
 ///
 /// A backend can select middleware in its callback using a separate expression:
 ///
@@ -954,6 +968,35 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn export(args: TokenStream, item: TokenStream) -> TokenStream {
     run(args, item, export::expand, |_| TokenStream2::new())
+}
+
+/// Expands to the first block when the flag is in the list, else to the `else` block, if any.
+///
+/// ```rust
+/// macro_rules! op {
+///     ([$($flag:ident),*]) => {
+///         eva::if_flag!(write in [$($flag),*] { "write" } else { "read" })
+///     };
+/// }
+/// assert_eq!(op!([write, stream]), "write");
+/// assert_eq!(op!([]), "read");
+/// ```
+///
+/// The chosen block's contents expand in place, so it works in item, statement and
+/// expression position.
+#[proc_macro]
+pub fn if_flag(input: TokenStream) -> TokenStream {
+    flags::if_flag(input.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+#[doc(hidden)]
+#[proc_macro]
+pub fn check_flags(input: TokenStream) -> TokenStream {
+    flags::check(input.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 /// Implements the trait for `&T`, `&mut T`, `Box<T>`, `Rc<T>` and `Arc<T>` by forwarding to `T`.

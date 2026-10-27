@@ -46,12 +46,16 @@ impl Parse for Args {
 }
 
 impl Args {
+    pub fn serde(&self) -> bool {
+        self.derives.serialize || self.derives.deserialize
+    }
+
     pub fn as_static_str(&self) -> bool {
         self.not_as_static_str.is_none()
     }
 
     /// Rejects options that don't apply to the item kind.
-    pub fn check(&self, item: &Item) -> syn::Result<()> {
+    pub(super) fn check(&self, item: &Item) -> syn::Result<()> {
         match (&item.kind, &self.not_as_static_str) {
             (Kind::Struct(_), Some(key)) => Err(syn::Error::new(
                 key.span(),

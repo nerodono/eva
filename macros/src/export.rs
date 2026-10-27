@@ -1,33 +1,56 @@
+use std::collections::HashSet;
+
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
     Token,
     parse::{Parse, ParseStream},
+    punctuated::Punctuated,
     spanned::Spanned,
 };
 
 struct Options {
     name: syn::Ident,
+    flags: Vec<syn::Ident>,
 }
 impl Parse for Options {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut name = None;
-        if !input.is_empty() {
+        let mut flags = None;
+        while !input.is_empty() {
             let key: syn::Ident = input.parse()?;
-            if key != "name" {
-                return Err(syn::Error::new(
-                    key.span(),
-                    "expected `name = for_each_endpoint`",
-                ));
+            match key.to_string().as_str() {
+                "name" if name.is_none() => {
+                    input.parse::<Token![=]>()?;
+                    name = Some(input.parse()?);
+                }
+                "flags" if flags.is_none() => {
+                    let content;
+                    syn::parenthesized!(content in input);
+                    let list = Punctuated::<syn::Ident, Token![,]>::parse_terminated(&content)?;
+                    let mut seen = HashSet::new();
+                    for flag in &list {
+                        if !seen.insert(flag.to_string()) {
+                            return Err(syn::Error::new(flag.span(), "duplicate flag"));
+                        }
+                    }
+                    flags = Some(list.into_iter().collect());
+                }
+                _ => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        "expected `name = for_each_endpoint` or `flags(...)`, once each",
+                    ));
+                }
             }
-            input.parse::<Token![=]>()?;
-            name = Some(input.parse()?);
-            if input.peek(Token![,]) {
-                input.parse::<Token![,]>()?;
+            if input.is_empty() {
+                break;
             }
+            input.parse::<Token![,]>()?;
         }
         Ok(Self {
             name: name.unwrap_or_else(|| syn::parse_quote!(for_each_endpoint)),
+            flags: flags.unwrap_or_default(),
         })
     }
 }
@@ -57,8 +80,8 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     let mut accessors = Vec::new();
     let mut imports = Vec::new();
     let mut exports = Vec::new();
-    let mut steps = Vec::new();
-    let mut first = None;
+    let mut exported_chain = Vec::new();
+    let mut local_chain = Vec::new();
     for field in &fields.named {
         let accessor = field.ident.as_ref().unwrap();
         let syn::Type::Path(ty) = &field.ty else {
@@ -96,17 +119,13 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 #path::Client::new(&mut self.0)
             }
         });
-        if first.is_none() {
-            first = Some((exported, accessor));
-        } else {
-            steps.push(quote! { ([#exported] #accessor #accessor) });
-        }
+        exported_chain.push((exported, accessor));
+        local_chain.push((quote!(#import), accessor));
     }
-    let invoke = if let Some((path, accessor)) = first {
-        quote! { #path::for_each_endpoint! { @append [#path] [#accessor #accessor] [$($callback)::+] [] [#(#steps)*] } }
-    } else {
-        quote! { $($callback)::+! {} }
-    };
+    let invoke = chain(&exported_chain, quote!($($callback)::+));
+    let check = super::service::unique("export_flags", name);
+    let check_invoke = chain(&local_chain, quote!(#check));
+    let allowed = &opts.flags;
     Ok(quote! {
         #(#attrs)*
         #[repr(transparent)]
@@ -137,5 +156,31 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             };
         }
         #vis use #export as #macro_name;
+
+        macro_rules! #check {
+            ($($accessor:ident {
+                trait: $service_trait:path,
+                client: $client:path,
+                methods: {$($method:ident {
+                    flags: [$($flag:ident),*],
+                    $($method_rest:tt)*
+                })*},
+                $($rest:tt)*
+            })*) => {
+                ::eva::_priv::check_flags!([#(#allowed),*] $($($($flag)*)*)*);
+            };
+        }
+        #check_invoke
     })
+}
+
+/// Invokes `callback` with the metadata of `services`, threaded through their macros.
+fn chain(services: &[(TokenStream, &syn::Ident)], callback: TokenStream) -> TokenStream {
+    let Some(((path, accessor), rest)) = services.split_first() else {
+        return quote! { #callback! {} };
+    };
+    let rest = rest
+        .iter()
+        .map(|(path, accessor)| quote!(([#path] #accessor)));
+    quote! { #path::for_each_endpoint! { @append [#path] [#accessor] [#callback] [] [#(#rest)*] } }
 }

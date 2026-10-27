@@ -1,7 +1,13 @@
 use crate::{auto_impl, fut::Fut};
 
-pub use self::{apply::Apply, then::Then};
+pub use self::{
+    apply::Apply,
+    fn_step::{FnStep, step},
+    then::Then,
+};
 
+/// A call bound to its state. Service traits return one per method: the binding wraps
+/// the endpoint in [`Handler`] middleware with `then`/`apply` and binds it to state.
 pub trait CallStep<I>: Send + Sync {
     type Output;
 
@@ -9,7 +15,11 @@ pub trait CallStep<I>: Send + Sync {
 }
 
 mod apply;
+mod fn_step;
 mod then;
+
+#[cfg(test)]
+mod tests;
 
 pub trait HandlerExt: Sized {
     fn then<R>(self, rhs: R) -> Then<Self, R> {

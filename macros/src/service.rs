@@ -136,8 +136,35 @@ impl Parse for ErrorVariant {
     }
 }
 
-fn data_attrs(attrs: Vec<syn::Attribute>, error: bool) -> TokenStream {
-    let has_data = attrs.iter().any(|attr| attr.path().is_ident("data"));
+/// The attributes with `data` routed to `::eva::data`, plus whether the item derives serde.
+/// Error types always get `error`.
+fn data_attrs(attrs: Vec<syn::Attribute>, error: bool) -> syn::Result<(TokenStream, bool)> {
+    let mut has_data = false;
+    let mut serde = true;
+    let mut output = Vec::with_capacity(attrs.len());
+    for mut attr in attrs {
+        if attr.path().is_ident("data") {
+            has_data = true;
+            let mut tokens = match &attr.meta {
+                syn::Meta::Path(_) => TokenStream::new(),
+                syn::Meta::List(list) => list.tokens.clone(),
+                syn::Meta::NameValue(_) => {
+                    return Err(syn::Error::new(attr.span(), "expected `data(...)`"));
+                }
+            };
+            let args = syn::parse2::<crate::data::Args>(tokens.clone())?;
+            serde &= args.serde();
+            if error && !args.error {
+                tokens = if tokens.is_empty() {
+                    quote!(error)
+                } else {
+                    quote!(error, #tokens)
+                };
+            }
+            attr.meta = syn::parse_quote!(::eva::data(#tokens));
+        }
+        output.push(attr);
+    }
     let default = (!has_data).then(|| {
         if error {
             quote!(#[::eva::data(error)])
@@ -145,17 +172,7 @@ fn data_attrs(attrs: Vec<syn::Attribute>, error: bool) -> TokenStream {
             quote!(#[::eva::data])
         }
     });
-    let attrs = attrs.into_iter().map(|mut attr| {
-        if attr.path().is_ident("data") {
-            match &mut attr.meta {
-                syn::Meta::Path(p) => *p = syn::parse_quote!(::eva::data),
-                syn::Meta::List(l) => l.path = syn::parse_quote!(::eva::data),
-                _ => {}
-            }
-        }
-        attr
-    });
-    quote!(#default #(#attrs)*)
+    Ok((quote!(#default #(#output)*), serde))
 }
 
 fn attributes(attr: &syn::Attribute) -> syn::Result<Vec<syn::Attribute>> {
@@ -408,7 +425,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                     ok_lifetimes.visit_type_mut(&mut field.ty);
                 }
                 let ok_generics = generics(&ok_lifetimes.names);
-                let attrs = data_attrs(ok_attrs, false);
+                let (attrs, _) = data_attrs(ok_attrs, false)?;
                 quote!(#attrs pub struct Ok #ok_generics { #fields })
             }
             ret => {
@@ -430,13 +447,9 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 }
                 ok_lifetimes.visit_type_mut(&mut ty);
                 let ok_generics = generics(&ok_lifetimes.names);
-                let no_serde = ok_attrs.iter().any(|a| {
-                    a.path().is_ident("data") && a.to_token_stream().to_string().contains("serde")
-                });
-                let transparent = (!no_serde
-                    && !ok_attrs.iter().any(|a| a.path().is_ident("serde")))
-                .then(|| quote!(#[serde(transparent)]));
-                let attrs = data_attrs(ok_attrs, false);
+                let custom_serde = ok_attrs.iter().any(|a| a.path().is_ident("serde"));
+                let (attrs, serde) = data_attrs(ok_attrs, false)?;
+                let transparent = (serde && !custom_serde).then(|| quote!(#[serde(transparent)]));
                 quote!(#attrs #transparent pub struct Ok #ok_generics (#[from] pub #ty);)
             }
         };
@@ -465,10 +478,10 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 }
                 tokens.push(quote!(#[display("{_0}")] #name(#[from] #ty)));
             }
-            let attrs = data_attrs(err_attrs, true);
+            let (attrs, _) = data_attrs(err_attrs, true)?;
             quote!(#attrs pub enum Err { #(#tokens),* })
         };
-        let args_attrs = data_attrs(args_attrs, false);
+        let (args_attrs, _) = data_attrs(args_attrs, false)?;
         modules.push(quote! {
             pub mod #ident {
                 #[allow(unused_imports)]
@@ -494,9 +507,11 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 async move { ::eva::handling::CallStep::call(&mut step, args).await }
             }
         });
+        let lifetime_names = &lifetimes.names;
         entries.push(quote! {
-            #(#[#flags])*
-            #ident = #ident #args_generics {
+            #ident {
+                flags: [#(#flags),*],
+                lifetimes: [#(#lifetime_names),*],
                 args: $($root)*::#ident::Args #args_generics,
                 ok: $($root)*::#ident::Ok #ok_generics,
                 err: $($root)*::#ident::Err,
@@ -548,27 +563,27 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             #[doc(hidden)]
             #[macro_export]
             macro_rules! #export {
-                (@append [$($root:tt)*] [$segment:ident $accessor:ident] [$($callback:tt)*] [$($acc:tt)*] []) => {
+                (@append [$($root:tt)*] [$accessor:ident] [$($callback:tt)*] [$($acc:tt)*] []) => {
                     $($callback)*! {
                         $($acc)*
-                        $segment { $accessor: #name {
+                        $accessor {
                             trait: $($root)*::Trait,
                             client: $($root)*::Client,
-                            #(#entries)*
-                        } }
+                            methods: { #(#entries)* },
+                        }
                     }
                 };
-                (@append [$($root:tt)*] [$segment:ident $accessor:ident] [$($callback:tt)*] [$($acc:tt)*]
-                    [([$($next:tt)*] $next_segment:ident $next_accessor:ident) $($rest:tt)*]) => {
+                (@append [$($root:tt)*] [$accessor:ident] [$($callback:tt)*] [$($acc:tt)*]
+                    [([$($next:tt)*] $next_accessor:ident) $($rest:tt)*]) => {
                     $($next)*::for_each_endpoint! {
-                        @append [$($next)*] [$next_segment $next_accessor]
+                        @append [$($next)*] [$next_accessor]
                         [$($callback)*] [
                             $($acc)*
-                            $segment { $accessor: #name {
+                            $accessor {
                                 trait: $($root)*::Trait,
                                 client: $($root)*::Client,
-                                #(#entries)*
-                            } }
+                                methods: { #(#entries)* },
+                            }
                         ] [$($rest)*]
                     }
                 };

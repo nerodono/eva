@@ -1,4 +1,7 @@
-use eva::{handling::CallStep, service};
+use eva::{
+    handling::{CallStep, step},
+    service,
+};
 
 #[eva::data(error, display("missing"))]
 pub struct Missing;
@@ -37,39 +40,73 @@ pub mod contract {
     }
 }
 
+pub mod more {
+    use super::*;
+
+    #[service(export)]
+    pub trait Extras {
+        #[flags(stream)]
+        fn pair<'a>(left: &'a str, right: &str) -> u32;
+
+        #[err(data(not(schemars)))]
+        #[errors(Invalid)]
+        fn checked();
+
+        fn raw() -> ok!(
+            #[data(not(serde, schemars))]
+            u64
+        );
+    }
+}
+
 mod session {
     use eva::export;
 
     use super::contract::{Authors as Writers, Health};
 
-    #[export]
+    #[export(flags(write, stream))]
     pub struct Session {
         authors: Writers,
         health: self::Health,
+        extras: super::more::Extras,
     }
 }
 pub use session::{Session, for_each_endpoint};
 
 macro_rules! endpoints {
-    ($($segment:ident { $accessor:ident: $Name:ident {
+    ($($accessor:ident {
         trait: $Trait:path,
         client: $Client:path,
-        $($(#[$flag:ident])* $method:ident = $endpoint:ident $(<$lt:lifetime>)? {
+        methods: {$($method:ident {
+            flags: [$($flag:ident),*],
+            lifetimes: [$($lt:lifetime),*],
             args: $Args:ty, ok: $Ok:ty, err: $Err:ty, output: $Output:ty,
             docs: [$($doc:literal),*],
-        })*
-    } })*) => {
-        const NAMES: &[&str] = &[$($(concat!(stringify!($segment), ".", stringify!($method)),)*)*];
+            $($method_extra:tt)*
+        })*},
+        $($extra:tt)*
+    })*) => {
+        const NAMES: &[&str] = &[$($(concat!(stringify!($accessor), ".", stringify!($method)),)*)*];
+
+        #[allow(clippy::vec_init_then_push, reason = "pushes come from if_flag!")]
+        fn writes() -> Vec<&'static str> {
+            let mut writes = Vec::new();
+            $($(eva::if_flag!(write in [$($flag),*] {
+                writes.push(concat!(stringify!($accessor), ".", stringify!($method)));
+            });)*)*
+            writes
+        }
+
         $(
             #[allow(dead_code)]
-            mod $segment {
+            mod $accessor {
                 use $Client as Client;
 
                 fn client<S: $Trait>(state: S) -> Client<S> {
                     Client::new(state)
                 }
 
-                $(fn $method $(<$lt>)?(_: $Args) -> Option<($Ok, $Err, $Output)> {
+                $(fn $method<$($lt),*>(_: $Args) -> Option<($Ok, $Err, $Output)> {
                     None
                 })*
             }
@@ -91,34 +128,24 @@ impl contract::Authors::Trait for Backend {
     fn get(
         &mut self,
     ) -> impl CallStep<contract::Authors::get::Args, Output = contract::Authors::get::Output> {
-        struct Get;
-        impl CallStep<contract::Authors::get::Args> for Get {
-            type Output = contract::Authors::get::Output;
-            async fn call(&mut self, args: contract::Authors::get::Args) -> Self::Output {
-                if args.id == 0 {
-                    Err(Missing.into())
-                } else {
-                    Ok(args.id.into())
-                }
+        step(|args: contract::Authors::get::Args| async move {
+            if args.id == 0 {
+                Err(Missing.into())
+            } else {
+                Ok(args.id.into())
             }
-        }
-        Get
+        })
     }
     fn create<'a>(
         &mut self,
     ) -> impl CallStep<contract::Authors::create::Args<'a>, Output = contract::Authors::create::Output>
     {
-        struct Create;
-        impl<'a> CallStep<contract::Authors::create::Args<'a>> for Create {
-            type Output = contract::Authors::create::Output;
-            async fn call(&mut self, args: contract::Authors::create::Args<'a>) -> Self::Output {
-                Ok(contract::Authors::create::Ok {
-                    id: 7,
-                    name: args.name.to_owned(),
-                })
-            }
-        }
-        Create
+        step(|args: contract::Authors::create::Args<'a>| async move {
+            Ok(contract::Authors::create::Ok {
+                id: 7,
+                name: args.name.to_owned(),
+            })
+        })
     }
 }
 impl contract::Health::Trait for Backend {
@@ -134,6 +161,33 @@ impl contract::Health::Trait for Backend {
     {
         Ready(Ok(contract::Health::status::Ok { is_ready: true }))
     }
+}
+
+impl more::Extras::Trait for Backend {
+    fn pair<'a, 'b>(
+        &mut self,
+    ) -> impl CallStep<more::pair::Args<'a, 'b>, Output = more::pair::Output> {
+        Ready(Ok(2.into()))
+    }
+
+    fn checked(&mut self) -> impl CallStep<more::checked::Args, Output = more::checked::Output> {
+        Ready(Err(Invalid.into()))
+    }
+
+    fn raw(&mut self) -> impl CallStep<more::raw::Args, Output = more::raw::Output> {
+        Ready(Ok(5.into()))
+    }
+}
+
+#[test]
+fn custom_data_keeps_errors_and_skips_serde_transparency() {
+    fn error<E: std::error::Error>(_: &E) {}
+    let mut session = Session::new(Backend);
+    assert_eq!(run(session.extras().pair("a", "b")).unwrap().0, 2);
+    let err = run(session.extras().checked()).unwrap_err();
+    error(&err);
+    assert_eq!(err.to_string(), "invalid");
+    assert_eq!(run(session.extras().raw()).unwrap().0, 5);
 }
 
 fn run<F: Future>(future: F) -> F::Output {
@@ -159,9 +213,13 @@ fn clients_accept_owned_borrowed_and_boxed_implementations() {
             "authors.get",
             "authors.create",
             "health.ping",
-            "health.status"
+            "health.status",
+            "extras.pair",
+            "extras.checked",
+            "extras.raw",
         ]
     );
+    assert_eq!(writes(), ["authors.create"]);
     let mut session = Session::new(Backend);
     assert_eq!(run(session.authors().get(4)).unwrap().0, 4);
     assert!(matches!(

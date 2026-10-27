@@ -18,7 +18,7 @@ pub use bytesize;
 pub use schemars;
 pub use url;
 
-pub use eva_macros::{auto_impl, data, endpoint, export, int, service, str};
+pub use eva_macros::{auto_impl, data, endpoint, export, if_flag, int, service, str};
 pub use seq_macro::seq;
 
 pub use perfect_derive::perfect_derive;

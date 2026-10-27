@@ -6,7 +6,9 @@ use heck::{ToKebabCase, ToLowerCamelCase, ToPascalCase, ToSnakeCase};
 
 use crate::utils::{self, maybe};
 
-use self::{args::Args, cases::Case};
+pub(crate) use self::args::Args;
+
+use self::cases::Case;
 
 mod args;
 mod cases;
