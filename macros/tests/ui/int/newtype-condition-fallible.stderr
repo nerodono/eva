@@ -47,6 +47,7 @@ note: if you're trying to build a new `HighPort` consider using one of the follo
            candidate #2: `UniformSampler`
            candidate #3: `ahash::HashMapExt`
            candidate #4: `ahash::HashSetExt`
+           candidate #5: `parking_lot_core::thread_parker::ThreadParkerT`
    = note: this error originates in the attribute macro `eva::int` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: there is a method `ne` with a similar name
    |

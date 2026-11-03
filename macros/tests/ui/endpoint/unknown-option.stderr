@@ -1,7 +1,7 @@
-error: unknown option `bogus`; expected one of: crate
+error: unknown option `bogus`; expected one of: crate, not
  --> tests/ui/endpoint/unknown-option.rs:2:17
   |
-2 | #[eva::endpoint(bogus)]
+2 | #[eva::endpoint(bogus = true)]
   |                 ^^^^^
 
 error: endpoint fn must be `async`; expected `async fn Name(state: S, args: A) -> O`

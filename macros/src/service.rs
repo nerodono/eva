@@ -227,6 +227,8 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     let result = opts
         .result
         .unwrap_or_else(|| syn::parse_quote!(::core::result::Result));
+    // Resolve the configured constructor before introducing the service's own `Result`.
+    let result_import = unique("result", name);
     let mut modules = Vec::new();
     let mut methods = Vec::new();
     let mut clients = Vec::new();
@@ -482,6 +484,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             quote!(#attrs pub enum Err { #(#tokens),* })
         };
         let (args_attrs, _) = data_attrs(args_attrs, false)?;
+        let endpoint_scope = crate::endpoint::scope::export(ident, &ok_lifetimes.names);
         modules.push(quote! {
             pub mod #ident {
                 #[allow(unused_imports)]
@@ -491,17 +494,18 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 pub struct Args #args_generics { #(#fields),* }
                 #ok_tokens
                 #err_tokens
-                pub type Output #ok_generics = #result<Ok #ok_generics, Err>;
+                #endpoint_scope
             }
         });
+        let output = quote!(self::Result<#ident::Ok #ok_generics, #ident::Err>);
         methods.push(quote! {
             #(#method_attrs)*
-            fn #ident #args_generics (&mut self) -> impl ::eva::handling::CallStep<#ident::Args #args_generics, Output = #ident::Output #ok_generics>;
+            fn #ident #args_generics (&mut self) -> impl ::eva::handling::CallStep<#ident::Args #args_generics, Output = #output>;
         });
         clients.push(quote! {
             #(#method_attrs)*
             #[allow(clippy::too_many_arguments)]
-            pub fn #ident #args_generics (&mut self, #(#params),*) -> impl ::eva::fut::Fut<Output = #ident::Output #ok_generics> {
+            pub fn #ident #args_generics (&mut self, #(#params),*) -> impl ::eva::fut::Fut<Output = #output> {
                 let mut step = self.0.#ident();
                 let args = #ident::Args { #(#values),* };
                 async move { ::eva::handling::CallStep::call(&mut step, args).await }
@@ -515,7 +519,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 args: $($root)*::#ident::Args #args_generics,
                 ok: $($root)*::#ident::Ok #ok_generics,
                 err: $($root)*::#ident::Err,
-                output: $($root)*::#ident::Output #ok_generics,
+                output: $($root)*::Result<$($root)*::#ident::Ok #ok_generics, $($root)*::#ident::Err>,
                 docs: [#(#doc_strings),*],
             }
         });
@@ -543,11 +547,13 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     };
     let export = unique("service", name);
     Ok(quote! {
+        use #result as #result_import;
         #(#docs)*
         #[allow(non_snake_case)]
         #vis mod #name {
             #[allow(unused_imports)]
             use super::*;
+            pub type Result<T, E> = #result_import<T, E>;
             #(#modules)*
             #[::eva::auto_impl(&mut, Box)]
             pub trait Trait: Send + Sync { #(#methods)* }

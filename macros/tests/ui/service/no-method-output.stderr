@@ -1,0 +1,15 @@
+error[E0425]: cannot find type `Output` in module `Greetings::greet`
+ --> tests/ui/service/no-method-output.rs:6:32
+  |
+6 | fn output(_: Greetings::greet::Output) {}
+  |                                ^^^^^^ not found in `Greetings::greet`
+  |
+help: consider importing this struct
+  |
+1 + use std::process::Output;
+  |
+help: if you import `Output`, refer to it directly
+  |
+6 - fn output(_: Greetings::greet::Output) {}
+6 + fn output(_: Output) {}
+  |

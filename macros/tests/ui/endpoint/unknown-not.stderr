@@ -1,0 +1,5 @@
+error: unknown option `tracing`; expected one of: trace
+ --> tests/ui/endpoint/unknown-not.rs:1:21
+  |
+1 | #[eva::endpoint(not(tracing))]
+  |                     ^^^^^^^

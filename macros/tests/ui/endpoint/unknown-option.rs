@@ -1,5 +1,5 @@
 // Option and signature errors are reported together.
-#[eva::endpoint(bogus)]
+#[eva::endpoint(bogus = true)]
 pub fn Noop(state: (), args: ()) {}
 
 fn main() {

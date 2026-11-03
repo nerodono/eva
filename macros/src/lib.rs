@@ -644,6 +644,9 @@ pub fn int(args: TokenStream, item: TokenStream) -> TokenStream {
 /// ```text
 /// #[endpoint]
 /// [attrs] vis async fn Name<generics>(state: S, args: A) -> O where ... { body }
+///
+/// #[endpoint(Service::method)]
+/// [attrs] vis async fn Name(state: S, args: this::Args) -> this::Output { body }
 /// ```
 ///
 /// expands to
@@ -657,6 +660,7 @@ pub fn int(args: TokenStream, item: TokenStream) -> TokenStream {
 /// impl<generics> Endpoint<A, S> for Name where ... {
 ///     type Output = O;
 ///
+///     #[fastrace::trace(name = "Name")]
 ///     [call attrs]
 ///     async fn call(&self, state: S, args: A) -> Self::Output { body }
 /// }
@@ -668,9 +672,47 @@ pub fn int(args: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ## Options
 ///
-/// | Option         | Meaning                                  |
-/// |----------------|------------------------------------------|
-/// | `crate = path` | The path to `eva`; `::eva` by default.   |
+/// | Option | Meaning |
+/// | --- | --- |
+/// | `Service::method` | Optional first argument: expose the method's types and a local `Output` through `this`. |
+/// | `not(trace)` | Disable automatic tracing for this endpoint. |
+/// | `crate = path` | The path to `eva`; `::eva` by default. |
+///
+/// Options follow the module path, when present: `#[endpoint(Service::method, not(trace))]`.
+/// The plain `#[endpoint]` form continues to accept arbitrary input and output types.
+///
+/// ## Method scope
+///
+/// `#[endpoint(Service::method)]` creates a local `this` module in an anonymous const around
+/// the impl. It re-exports the method's types and adds
+/// `type Output = Service::Result<Ok, Err>`, with the success type's lifetimes when needed.
+/// `Output` belongs to this endpoint scope; the service's method module has no such alias.
+/// Each endpoint gets its own namespace, visible in its signature and body; the impl stays
+/// in the surrounding module, preserving its imports and `self`/`super` paths.
+/// The module path takes no generic arguments; type arguments go on the types, such as
+/// `this::Args<'a>` and `this::Output<'a>`. Explicit types may still be used with this form.
+/// Re-exported methods and imported method aliases retain their service's result constructor.
+///
+/// `this::Ok { field: value }`, `this::Ok(value)`, and `this::Err::Variant(value)` are ordinary
+/// Rust constructors. Enum variants and patterns work without helper macros. Other items
+/// in the method module, including those defined by `embed!`, are also available through `this`.
+///
+/// ## Tracing
+///
+/// Both forms add a fastrace span by default. Its name is the module path as written in the
+/// attribute (`Service::method`), or the original fn name (`Name`) without a module binding.
+/// The generated attribute reaches fastrace through `eva`, including when `crate = path`
+/// renames it; no direct fastrace dependency is needed for automatic tracing.
+///
+/// `fastrace/enable` controls collection; `eva`'s `enable-tracing` feature enables it. Without
+/// that feature on fastrace, its attribute leaves the function uninstrumented. Collecting spans
+/// requires a reporter and a parent tracing context supplied by the caller.
+///
+/// A qualified `#[fastrace::trace(...)]` placed below `#[endpoint]` replaces the automatic
+/// attribute, preserving its custom name and properties without adding a second span.
+/// An imported or renamed trace attribute cannot be recognized through name resolution;
+/// use `not(trace)` when adding one. `not(trace)` only disables the automatic attribute,
+/// leaving explicit attributes in place.
 ///
 /// ## Signature rules
 ///
@@ -727,6 +769,25 @@ pub fn int(args: TokenStream, item: TokenStream) -> TokenStream {
 /// #     }
 /// # }
 /// assert_eq!(block_on(Add.call(&2, 3)), 5);
+/// ```
+///
+/// An endpoint bound to a service method, with automatic tracing and local type names:
+///
+/// ```rust
+/// #[eva::service]
+/// pub trait Greetings {
+///     fn greet(name: String) -> ok! { message: String };
+/// }
+///
+/// pub struct State { pub prefix: String }
+///
+/// #[eva::endpoint(Greetings::greet)]
+/// pub async fn Greet(state: &State, args: this::Args) -> this::Output {
+///     Ok(this::Ok {
+///         message: format!("{}, {}!", state.prefix, args.name),
+///     })
+/// }
+/// # fn main() {}
 /// ```
 ///
 /// A generic endpoint over a mutably borrowed state, with `crate = path` and routed attributes:
@@ -799,13 +860,14 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 ///
 /// The name is preserved exactly: `Users` becomes a module containing:
 ///
-/// - `Trait`, with `fn get(&mut self) -> impl CallStep<get::Args, Output = get::Output>`.
+/// - `Result<T, E>`, the service's configured result container.
+/// - `Trait`, with `fn get(&mut self) -> impl CallStep<get::Args, Output = Result<get::Ok, get::Err>>`.
 ///   The trait is also implemented for `&mut S` and `Box<S>`.
 /// - `Client<S>`, which owns any `S: Trait`. Its methods accept the declared arguments,
 ///   construct `Args`, and return a `Send` future. `Client::new(backend)`,
 ///   `Client::new(&mut backend)` and `Client::new(Box::new(backend))` are supported.
 ///   `inner_mut()` exposes the underlying service trait for callers that already have `Args`.
-/// - One module per method, containing `Args`, `Ok`, `Err` and `Output`.
+/// - One module per method, containing `Args`, `Ok`, `Err` and any embedded items.
 /// - `for_each_endpoint!`, the service metadata callback used by `#[export]`.
 ///
 /// `#[service(export)]` also re-exports every method module beside the service.
@@ -848,8 +910,12 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 /// `#[flags(write, stream)]` tags a method for metadata consumers; the session's
 /// `#[export(flags(...))]` declares which flags exist.
 ///
-/// `Output` defaults to `Result<Ok, Err>`. `#[service(result = path::Response)]` uses
-/// a different two-parameter result constructor, such as `Result<O, Generic<E>>`.
+/// `Result<T, E>` defaults to `::core::result::Result<T, E>`.
+/// `#[service(result = path::Response)]` defines it as `path::Response<T, E>` instead,
+/// for example an alias for `Result<T, Generic<E>>`. The trait, client and metadata express
+/// each method's result as `Service::Result<method::Ok, method::Err>` directly; method
+/// modules do not define an `Output` alias. A bound [`endpoint`] provides `this::Output`
+/// locally for its implementation.
 ///
 /// Generated data uses `#[eva::data]`. `#[args(...)]` and `#[err(...)]` forward
 /// attributes to the corresponding type; attributes inside `ok!` customize `Ok`.
@@ -864,7 +930,8 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 /// path. It accepts tokens, including generic arguments and nested paths, rather
 /// than just an identifier. All three helpers (`ok!`, `this!`, `embed!`) are
 /// consumed by `service` and need no imports. Inside the method module `Ok` and `Err`
-/// name the generated types, so embedded code spells `Result::Ok` and `Result::Err`.
+/// name the generated types, so embedded code uses qualified result constructors, such as
+/// `::core::result::Result::Ok` and `::core::result::Result::Err` for the standard container.
 ///
 /// ```rust
 /// use eva::service;
@@ -954,6 +1021,8 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
 /// [`if_flag!`](macro@if_flag). Trait and client paths are provided directly; callbacks do
 /// not have to reconstruct them. Method flags and documentation come from `#[service]`,
 /// so no second method registry is needed.
+/// The `output` field is a composed `Service::Result<method::Ok, method::Err>` type;
+/// capture it as `ty` rather than assuming a method-local type alias.
 ///
 /// A backend can select middleware in its callback using a separate expression:
 ///

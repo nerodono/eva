@@ -1,3 +1,4 @@
+pub use fastrace;
 pub use schemars;
 pub use serde;
 

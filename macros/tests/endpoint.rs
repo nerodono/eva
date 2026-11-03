@@ -177,3 +177,147 @@ pub async fn Gone(state: Undefined, args: ()) {}
 fn cfg_is_evaluated_first() {
     block_on(CfgAttrDocs.call((), ()));
 }
+
+#[allow(missing_docs)]
+mod bound {
+    use super::{Endpoint, block_on};
+    use eva as renamed;
+
+    #[eva::service]
+    pub trait Greetings {
+        fn greet(name: String) -> ok! { message: String };
+        fn length(name: &str) -> usize;
+        fn echo<'a>(name: &'a str) -> &'a str;
+    }
+
+    struct State {
+        prefix: String,
+    }
+
+    #[eva::endpoint(Greetings::greet)]
+    async fn Greet(state: &State, args: this::Args) -> this::Output {
+        let this::Args { name } = args;
+        Ok(this::Ok {
+            message: format!("{}, {}!", state.prefix, name),
+        })
+    }
+
+    // A second namespace in the same scope, with a borrowed input and a tuple success wrapper.
+    #[eva::endpoint(self::Greetings::length, crate = renamed)]
+    async fn Length<'a>(_state: (), args: this::Args<'a>) -> this::Output {
+        Ok(this::Ok(args.name.len()))
+    }
+
+    use Greetings::echo as borrowed;
+
+    #[eva::endpoint(borrowed)]
+    async fn Echo<'a>(_state: (), args: this::Args<'a>) -> this::Output<'a> {
+        Ok(this::Ok(args.name))
+    }
+
+    #[eva::endpoint(Greetings::greet, not(trace))]
+    #[deprecated]
+    async fn OldGreet(_state: (), args: this::Args) -> this::Output {
+        Ok(this::Ok { message: args.name })
+    }
+
+    // The binding need not be used if the signature and body already use explicit types.
+    #[eva::endpoint(Greetings::greet)]
+    async fn Explicit(
+        _state: (),
+        args: Greetings::greet::Args,
+    ) -> Greetings::Result<Greetings::greet::Ok, Greetings::greet::Err> {
+        Ok(Greetings::greet::Ok { message: args.name })
+    }
+
+    #[test]
+    fn service_types_and_local_aliases() {
+        let state = State {
+            prefix: "Hello".into(),
+        };
+        let args = || Greetings::greet::Args { name: "Eva".into() };
+        assert_eq!(
+            block_on(Greet.call(&state, args())).unwrap().message,
+            "Hello, Eva!"
+        );
+        assert_eq!(
+            block_on(Length.call((), Greetings::length::Args { name: "Eva" }))
+                .unwrap()
+                .0,
+            3
+        );
+        assert_eq!(block_on(Explicit.call((), args())).unwrap().message, "Eva");
+        let name = String::from("borrowed");
+        assert_eq!(
+            block_on(Echo.call((), borrowed::Args { name: &name }))
+                .unwrap()
+                .0,
+            name
+        );
+        #[expect(deprecated)]
+        let old = OldGreet;
+        assert_eq!(block_on(old.call((), args())).unwrap().message, "Eva");
+    }
+
+    #[eva::service(export)]
+    pub trait Choices {
+        #[errors(Empty(this![Empty]))]
+        fn operation(name: &str) -> this![Value];
+        embed! {
+            #[eva::data]
+            pub enum Value {
+                Named { value: String },
+                Tuple(usize),
+                Unit,
+            }
+            #[eva::data(error, display("empty"))]
+            pub struct Empty;
+        }
+    }
+
+    mod nested {
+        use super::State;
+
+        struct Args;
+        struct Ok;
+        struct Err;
+        struct Value;
+
+        #[eva::endpoint(super::operation)]
+        pub async fn Lookup<'a>(state: &State, args: this::Args<'a>) -> this::Output {
+            let _ = (Args, Ok, Err, Value);
+            let value = match args.name {
+                "" => return std::result::Result::Err(this::Err::Empty(this::Empty)),
+                "tuple" => this::Value::Tuple(args.name.len()),
+                "unit" => this::Value::Unit,
+                name => this::Value::Named {
+                    value: format!("{}:{name}", state.prefix),
+                },
+            };
+            match &value {
+                this::Value::Named { value } => assert!(!value.is_empty()),
+                this::Value::Tuple(len) => assert_eq!(*len, 5),
+                this::Value::Unit => (),
+            }
+            assert!(!matches!(value, this::Value::Tuple(0)));
+            std::result::Result::Ok(this::Ok(value))
+        }
+    }
+
+    #[test]
+    fn enum_constructors_patterns_and_parent_paths() {
+        let state = State {
+            prefix: "Hello".into(),
+        };
+        let call = |name| block_on(nested::Lookup.call(&state, operation::Args { name }));
+        assert_eq!(call(""), Err(operation::Err::Empty(operation::Empty)));
+        assert_eq!(call("tuple"), Ok(operation::Ok(operation::Value::Tuple(5))));
+        assert_eq!(call("unit"), Ok(operation::Ok(operation::Value::Unit)));
+        assert_eq!(
+            call("Eva"),
+            Ok(operation::Ok(operation::Value::Named {
+                value: "Hello:Eva".into()
+            }))
+        );
+    }
+}

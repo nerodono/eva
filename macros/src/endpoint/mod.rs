@@ -1,6 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens as _, quote, quote_spanned};
 use syn::{
+    Token,
     parse::{Parse, ParseStream},
     spanned::Spanned as _,
 };
@@ -13,21 +14,39 @@ use crate::{
 use self::{attrs::Routed, validate::Params};
 
 mod attrs;
+pub(crate) mod scope;
+mod trace;
 mod validate;
 
 const OPTIONS: Table = Table {
     keys: &[opts::CRATE],
-    not: &[],
+    not: &[&["trace"]],
 };
 
 struct Args {
     eva: syn::Path,
+    method: Option<syn::Path>,
+    trace: bool,
 }
 
 impl Parse for Args {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let opts = Opts::parse(input, &OPTIONS)?;
-        Ok(Self { eva: opts.krate() })
+        let method =
+            if !input.is_empty() && !input.peek2(Token![=]) && !input.peek2(syn::token::Paren) {
+                Some(input.call(syn::Path::parse_mod_style)?)
+            } else {
+                None
+            };
+        let opts = if method.is_some() {
+            Opts::parse_after_positional(input, &OPTIONS)?
+        } else {
+            Opts::parse(input, &OPTIONS)?
+        };
+        Ok(Self {
+            eva: opts.krate(),
+            method,
+            trace: opts.not("trace").is_none(),
+        })
     }
 }
 
@@ -40,7 +59,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     let attrs = attrs::route(&item.attrs);
 
     let mut out = unit_struct(&item, &attrs);
-    out.extend(endpoint_impl(&args.eva, &item, &params, &attrs));
+    out.extend(endpoint_impl(&args, &item, &params, &attrs));
     Ok(out)
 }
 
@@ -61,11 +80,12 @@ fn unit_struct(item: &syn::ItemFn, attrs: &Routed) -> TokenStream {
 
 // No `#[automatically_derived]`: it would silence `unused_variables` in the user's body.
 fn endpoint_impl(
-    eva: &syn::Path,
+    options: &Args,
     item: &syn::ItemFn,
     Params { state, args }: &Params,
     attrs: &Routed,
 ) -> TokenStream {
+    let eva = &options.eva;
     let syn::ItemFn { sig, block, .. } = item;
     let ident = &sig.ident;
     let (impl_generics, _, where_clause) = sig.generics.split_for_impl();
@@ -82,6 +102,7 @@ fn endpoint_impl(
     let alias = utils::local("Endpoint");
     let self_ty = if attrs.deprecated { &alias } else { ident };
     let (impl_attrs, call_attrs) = (&attrs.on_impl, &attrs.on_call);
+    let trace = trace::attribute(options, item);
     let imp = quote! {
         #(#impl_attrs)*
         impl #impl_generics #eva::handling::Endpoint<#args_ty, #state_ty>
@@ -89,18 +110,27 @@ fn endpoint_impl(
         {
             type Output = #output;
 
+            #trace
             #(#call_attrs)*
             async fn call(&#this, #state, #args) -> #returns #block
         }
     };
-    if !attrs.deprecated {
+    if !attrs.deprecated && options.method.is_none() {
         return imp;
     }
+    // Keep the impl in the caller's module so its `self`/`super` paths retain their meaning.
+    let method = options.method.as_ref().map(scope::declare);
     // Only the alias names the deprecated struct, so the body keeps its deprecation lints.
-    quote! {
-        const _: () = {
+    let deprecated = attrs.deprecated.then(|| {
+        quote! {
             #[allow(deprecated)]
             type #alias = #ident;
+        }
+    });
+    quote! {
+        const _: () = {
+            #method
+            #deprecated
             #imp
         };
     }

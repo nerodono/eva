@@ -1,0 +1,5 @@
+error: expected `,`
+ --> tests/ui/endpoint/method-generics.rs:1:33
+  |
+1 | #[eva::endpoint(Greetings::greet<u32>)]
+  |                                 ^

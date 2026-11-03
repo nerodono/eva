@@ -127,7 +127,10 @@ struct Backend;
 impl contract::Authors::Trait for Backend {
     fn get(
         &mut self,
-    ) -> impl CallStep<contract::Authors::get::Args, Output = contract::Authors::get::Output> {
+    ) -> impl CallStep<
+        contract::Authors::get::Args,
+        Output = contract::Authors::Result<contract::Authors::get::Ok, contract::Authors::get::Err>,
+    > {
         step(|args: contract::Authors::get::Args| async move {
             if args.id == 0 {
                 Err(Missing.into())
@@ -138,8 +141,13 @@ impl contract::Authors::Trait for Backend {
     }
     fn create<'a>(
         &mut self,
-    ) -> impl CallStep<contract::Authors::create::Args<'a>, Output = contract::Authors::create::Output>
-    {
+    ) -> impl CallStep<
+        contract::Authors::create::Args<'a>,
+        Output = contract::Authors::Result<
+            contract::Authors::create::Ok,
+            contract::Authors::create::Err,
+        >,
+    > {
         step(|args: contract::Authors::create::Args<'a>| async move {
             Ok(contract::Authors::create::Ok {
                 id: 7,
@@ -151,14 +159,22 @@ impl contract::Authors::Trait for Backend {
 impl contract::Health::Trait for Backend {
     fn ping(
         &mut self,
-    ) -> impl CallStep<contract::Health::ping::Args, Output = contract::Health::ping::Output> {
+    ) -> impl CallStep<
+        contract::Health::ping::Args,
+        Output = contract::Health::Result<contract::Health::ping::Ok, contract::Health::ping::Err>,
+    > {
         Ready(Ok(eva::True::new().into()))
     }
 
     fn status(
         &mut self,
-    ) -> impl CallStep<contract::Health::status::Args, Output = contract::Health::status::Output>
-    {
+    ) -> impl CallStep<
+        contract::Health::status::Args,
+        Output = contract::Health::Result<
+            contract::Health::status::Ok,
+            contract::Health::status::Err,
+        >,
+    > {
         Ready(Ok(contract::Health::status::Ok { is_ready: true }))
     }
 }
@@ -166,15 +182,26 @@ impl contract::Health::Trait for Backend {
 impl more::Extras::Trait for Backend {
     fn pair<'a, 'b>(
         &mut self,
-    ) -> impl CallStep<more::pair::Args<'a, 'b>, Output = more::pair::Output> {
+    ) -> impl CallStep<
+        more::pair::Args<'a, 'b>,
+        Output = more::Extras::Result<more::pair::Ok, more::pair::Err>,
+    > {
         Ready(Ok(2.into()))
     }
 
-    fn checked(&mut self) -> impl CallStep<more::checked::Args, Output = more::checked::Output> {
+    fn checked(
+        &mut self,
+    ) -> impl CallStep<
+        more::checked::Args,
+        Output = more::Extras::Result<more::checked::Ok, more::checked::Err>,
+    > {
         Ready(Err(Invalid.into()))
     }
 
-    fn raw(&mut self) -> impl CallStep<more::raw::Args, Output = more::raw::Output> {
+    fn raw(
+        &mut self,
+    ) -> impl CallStep<more::raw::Args, Output = more::Extras::Result<more::raw::Ok, more::raw::Err>>
+    {
         Ready(Ok(5.into()))
     }
 }
@@ -242,7 +269,12 @@ fn clients_accept_owned_borrowed_and_boxed_implementations() {
 fn borrowed_generic_call<S: contract::Authors::Trait>(
     state: &mut S,
     input: &str,
-) -> impl Future<Output = contract::Authors::create::Output> + Send {
+) -> impl Future<
+    Output = contract::Authors::Result<
+        contract::Authors::create::Ok,
+        contract::Authors::create::Err,
+    >,
+> + Send {
     async move { contract::Authors::Client::new(state).create(input).await }
 }
 #[test]
@@ -299,10 +331,15 @@ mod embedded {
 }
 
 impl embedded::Values::Trait for Backend {
-    fn echo(&mut self) -> impl CallStep<embedded::echo::Args, Output = embedded::echo::Output> {
+    fn echo(
+        &mut self,
+    ) -> impl CallStep<
+        embedded::echo::Args,
+        Output = embedded::Values::Result<embedded::echo::Ok, embedded::echo::Err>,
+    > {
         struct Echo;
         impl CallStep<embedded::echo::Args> for Echo {
-            type Output = embedded::echo::Output;
+            type Output = embedded::Values::Result<embedded::echo::Ok, embedded::echo::Err>;
             async fn call(&mut self, args: embedded::echo::Args) -> Self::Output {
                 Ok(embedded::echo::Ok { value: args.value })
             }
@@ -312,10 +349,14 @@ impl embedded::Values::Trait for Backend {
 
     fn wrap(
         &mut self,
-    ) -> impl CallStep<embedded::Values::wrap::Args, Output = embedded::Values::wrap::Output> {
+    ) -> impl CallStep<
+        embedded::Values::wrap::Args,
+        Output = embedded::Values::Result<embedded::Values::wrap::Ok, embedded::Values::wrap::Err>,
+    > {
         struct Wrap;
         impl CallStep<embedded::Values::wrap::Args> for Wrap {
-            type Output = embedded::Values::wrap::Output;
+            type Output =
+                embedded::Values::Result<embedded::Values::wrap::Ok, embedded::Values::wrap::Err>;
             async fn call(&mut self, args: embedded::Values::wrap::Args) -> Self::Output {
                 Ok(args
                     .value
@@ -368,4 +409,97 @@ fn error_aliases_preserve_conversions_display_and_serialization() {
         serde_json::from_str::<get::Err>(&json).unwrap(),
         get::Err::NotFound(_)
     ));
+}
+
+pub(crate) use custom_result::for_each_custom_endpoint;
+
+mod custom_result {
+    use super::{CallStep, Invalid, Missing, run, step};
+    use eva::handling::Endpoint;
+
+    #[derive(Debug)]
+    pub struct Response<T, E>(pub std::result::Result<T, E>);
+
+    // The configured constructor may itself be imported as `Result`.
+    use Response as Result;
+
+    #[eva::service(result = Result, error = Missing, export)]
+    pub trait Values {
+        fn echo<'a>(value: &'a str) -> &'a str;
+
+        #[error(Invalid)]
+        fn checked(value: u32) -> u32;
+    }
+
+    #[eva::export(name = for_each_custom_endpoint)]
+    pub(crate) struct Session {
+        values: Values,
+    }
+
+    macro_rules! compose {
+        ($accessor:ident {
+            trait: $Trait:path,
+            client: $Client:path,
+            methods: {$($method:ident {
+                flags: [$($flag:ident),*],
+                lifetimes: [$($lt:lifetime),*],
+                args: $Args:ty, ok: $Ok:ty, err: $Err:ty, output: $Output:ty,
+                docs: [$($doc:literal),*],
+            })*},
+        }) => {
+            mod composed {
+                $(pub fn $method<$($lt),*>(value: $Ok) -> $Output {
+                    super::Response(Ok(value))
+                })*
+            }
+        };
+    }
+    for_each_custom_endpoint!(compose);
+
+    #[eva::endpoint(self::Values::echo)]
+    async fn Echo<'a>(_state: (), args: this::Args<'a>) -> this::Output<'a> {
+        let _: Option<this::Err> = None::<Missing>;
+        Result(Ok(this::Ok(args.value)))
+    }
+
+    use Values::checked as renamed_method;
+
+    #[eva::endpoint(renamed_method)]
+    async fn Checked(_state: (), args: this::Args) -> this::Output {
+        let error: this::Err = Invalid;
+        if args.value == 0 {
+            Result(Err(error))
+        } else {
+            Result(Ok(this::Ok(args.value)))
+        }
+    }
+
+    struct Backend;
+
+    impl Values::Trait for Backend {
+        fn echo<'a>(
+            &mut self,
+        ) -> impl CallStep<echo::Args<'a>, Output = Values::Result<echo::Ok<'a>, echo::Err>>
+        {
+            step(|args: echo::Args<'a>| Echo.call((), args))
+        }
+
+        fn checked(
+            &mut self,
+        ) -> impl CallStep<checked::Args, Output = Values::Result<checked::Ok, checked::Err>>
+        {
+            step(|args: checked::Args| Checked.call((), args))
+        }
+    }
+
+    #[test]
+    fn result_container_and_method_errors_agree_across_all_consumers() {
+        let text = String::from("borrowed result");
+        let mut session = Session::new(Backend);
+        assert_eq!(run(session.values().echo(&text)).0.unwrap().0, text);
+        assert_eq!(run(session.values().checked(42)).0.unwrap().0, 42);
+        assert_eq!(run(session.values().checked(0)).0.unwrap_err(), Invalid);
+        assert_eq!(composed::echo(echo::Ok(&text)).0.unwrap().0, text);
+        assert_eq!(composed::checked(checked::Ok(7)).0.unwrap().0, 7);
+    }
 }

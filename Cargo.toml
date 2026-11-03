@@ -35,7 +35,7 @@ otel = [
     "dep:opentelemetry-otlp",
     "dep:base64",
 ]
-tokio = ["dep:tokio", "dep:fastrace"]
+tokio = ["dep:tokio"]
 # Very long running.
 get_time_test = []
 
@@ -81,7 +81,7 @@ humantime = "2.3.0"
 log = { version = "0.4.28", features = ["kv", "std"] }
 logforth = { version = "0.28.1", default-features = false, features = ["append-fastrace", "append-file", "bridge-log", "layout-text", "layout-json", "append-async", "diagnostic-fastrace"], optional = true }
 opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["logs", "http-json", "reqwest-blocking-client"], optional = true }
-fastrace = { version = "0.7.14", optional = true }
+fastrace = "0.7.14"
 pin-project-lite = "0.2.16"
 base64 = { version = "0.22.1", optional = true }
 
