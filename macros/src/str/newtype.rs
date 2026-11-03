@@ -2,15 +2,15 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens as _, quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-use crate::utils::{self, join, local, maybe};
+use crate::utils::{self, construct, join, local, maybe, only_field, requires_struct};
 
-use super::{KindImpls, Target, args::Args, construct, requires_struct};
+use super::{KindImpls, Target, args::Args, common};
 
 pub fn expand<'a>(input: &'a syn::DeriveInput, args: &Args) -> syn::Result<KindImpls<'a>> {
-    let fields = requires_struct(input, "newtype")?;
-    let field = only_field(input, fields)?;
+    let fields = &requires_struct(input, "newtype")?.fields;
+    let field = only_field(&input.ident, fields)?;
     let eva = &args.eva;
-    let target = Target::new(input);
+    let target = Target::new(&input.ident, &input.generics);
 
     let attrs = if args.traits.json_schema {
         json_schema_derive(field, eva)?
@@ -18,30 +18,15 @@ pub fn expand<'a>(input: &'a syn::DeriveInput, args: &Args) -> syn::Result<KindI
         quote! {}
     };
     let mut impls = delegate(&target, fields, field);
-    impls.extend(maybe(args.traits.pattern, || pattern(&target, field, eva)));
+    impls.extend(maybe(args.pattern, || {
+        common::pattern(&target, fields, eva)
+    }));
 
     Ok(KindImpls {
         target,
         attrs,
         impls,
     })
-}
-
-fn only_field<'a>(
-    input: &syn::DeriveInput,
-    fields: &'a syn::Fields,
-) -> syn::Result<&'a syn::Field> {
-    let mut iter = fields.iter();
-    match (iter.next(), iter.next()) {
-        (Some(field), None) => Ok(field),
-        _ => {
-            let msg = "`newtype` requires exactly one field";
-            Err(match fields {
-                syn::Fields::Unit => syn::Error::new_spanned(&input.ident, msg),
-                _ => syn::Error::new_spanned(fields, msg),
-            })
-        }
-    }
 }
 
 /// The schema of the inner type.
@@ -78,6 +63,17 @@ fn delegate(target: &Target, fields: &syn::Fields, field: &syn::Field) -> TokenS
     let s = local("s");
     let parse = quote! { <#inner as ::core::str::FromStr>::from_str(#s)? };
     let construct = construct(fields, [parse].into_iter());
+    let from_str = target.implement(
+        quote!(::core::str::FromStr),
+        quote! {
+            type Err = <#inner as ::core::str::FromStr>::Err;
+
+            #[inline]
+            fn from_str(#s: &::core::primitive::str) -> ::core::result::Result<Self, Self::Err> {
+                ::core::result::Result::Ok(Self #construct)
+            }
+        },
+    );
 
     quote! {
         impl #impl_generics #ty #where_clause {
@@ -88,30 +84,6 @@ fn delegate(target: &Target, fields: &syn::Fields, field: &syn::Field) -> TokenS
             }
         }
 
-        #[automatically_derived]
-        impl #impl_generics ::core::str::FromStr for #ty #where_clause {
-            type Err = <#inner as ::core::str::FromStr>::Err;
-
-            #[inline]
-            fn from_str(#s: &::core::primitive::str) -> ::core::result::Result<Self, Self::Err> {
-                ::core::result::Result::Ok(Self #construct)
-            }
-        }
-    }
-}
-
-fn pattern(target: &Target, field: &syn::Field, eva: &syn::Path) -> TokenStream {
-    let (impl_generics, ty, where_clause) = target.split();
-    let inner = &field.ty;
-    let buf = local("buf");
-
-    quote! {
-        #[automatically_derived]
-        impl #impl_generics #eva::str::HasPattern for #ty #where_clause {
-            #[inline]
-            fn pat_into(#buf: &mut ::std::string::String) {
-                <#inner as #eva::str::HasPattern>::pat_into(#buf)
-            }
-        }
+        #from_str
     }
 }

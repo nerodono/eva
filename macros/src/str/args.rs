@@ -5,7 +5,7 @@ use syn::{
 };
 
 use crate::{
-    opts::{self, Key, Opts, Table},
+    opts::{self, CommonTraits, Key, Opts, Table},
     utils::Errors,
 };
 
@@ -28,15 +28,7 @@ pub struct Args {
     pub kind: Kind,
     pub copy: bool,
     pub eva: syn::Path,
-    pub traits: Traits,
-}
-
-/// The optional traits that are not opted out of.
-pub struct Traits {
-    pub serialize: bool,
-    pub deserialize: bool,
-    pub json_schema: bool,
-    pub debug: bool,
+    pub traits: CommonTraits,
     pub display: bool,
     pub pattern: bool,
 }
@@ -56,19 +48,13 @@ impl Parse for Args {
         let opts = Opts::parse_after_positional(input, &OPTIONS)?;
         check_kind_options(&kind, &opts)?;
 
-        let common = opts.common();
         Ok(Self {
             kind,
             copy: opts.flag("copy").is_some(),
             eva: opts.krate(),
-            traits: Traits {
-                serialize: common.serialize,
-                deserialize: common.deserialize,
-                json_schema: common.json_schema,
-                debug: common.debug,
-                display: opts.not("Display").is_none(),
-                pattern: opts.not("pat").is_none(),
-            },
+            traits: opts.common(),
+            display: opts.not("Display").is_none(),
+            pattern: opts.not("pat").is_none(),
         })
     }
 }

@@ -152,7 +152,7 @@ impl Int {
         // A derived `PartialEq` lets the variants be used in patterns.
         quote! {
             #[repr(#repr)]
-            #[derive(::core::cmp::PartialEq, ::core::cmp::Eq)]
+            #[derive(::core::clone::Clone, ::core::marker::Copy, ::core::cmp::PartialEq, ::core::cmp::Eq)]
             #(#attrs)*
             #vis enum #ident {
                 #(#variants),*

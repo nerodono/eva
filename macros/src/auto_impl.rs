@@ -6,11 +6,10 @@ use quote::quote;
 use syn::{
     FnArg, Pat, ReturnType, Token, TraitItem, Type, TypeParamBound, WherePredicate,
     parse::{Parse, ParseStream},
-    punctuated::Punctuated,
     spanned::Spanned,
 };
 
-use crate::utils::{Errors, local};
+use crate::utils::{Errors, comma_list, local};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Proxy {
@@ -82,8 +81,7 @@ impl Receiver {
 }
 
 pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let proxies =
-        syn::parse::Parser::parse2(Punctuated::<Proxy, Token![,]>::parse_terminated, args)?;
+    let proxies = syn::parse::Parser::parse2(comma_list::<Proxy>, args)?;
     let item = syn::parse2::<syn::ItemTrait>(item)?;
     let methods = item.items.iter().filter_map(|item| match item {
         TraitItem::Fn(m) => Some(m),

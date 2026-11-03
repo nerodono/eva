@@ -12,7 +12,7 @@ use heck::ToSnakeCase as _;
 
 use crate::{
     docs,
-    utils::{Errors, local},
+    utils::{Errors, Target, local},
 };
 
 use super::{Item, Kind, cases::Case};
@@ -81,17 +81,7 @@ pub fn impl_display(
         return Ok(quote! {});
     };
 
-    let (ig, tyg, where_clause) = item.generics.split_for_impl();
-    let ident = &item.ident;
-    Ok(quote! {
-        #[automatically_derived]
-        impl #ig ::core::fmt::Display for #ident #tyg #where_clause {
-            #[inline]
-            fn fmt(&self, #f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                #body
-            }
-        }
-    })
+    Ok(Target::new(&item.ident, &item.generics).format("Display", body))
 }
 
 fn struct_body(

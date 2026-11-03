@@ -4,13 +4,12 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-use crate::utils::local;
+use crate::utils::{Target, local};
 
 use super::{Item, Kind, cases::Case};
 
 pub fn from_impls(item: &Item, cases: &[Case]) -> TokenStream {
-    let (ig, tyg, where_clause) = item.generics.split_for_impl();
-    let ident = &item.ident;
+    let target = Target::new(&item.ident, &item.generics);
     let value = local("value");
     cases
         .iter()
@@ -18,30 +17,22 @@ pub fn from_impls(item: &Item, cases: &[Case]) -> TokenStream {
             let ty = &case.from?.ty;
             let construct = case.construct(&value);
             let cfg = &case.cfg;
-            Some(quote! {
-                #cfg
-                #[automatically_derived]
-                impl #ig ::core::convert::From<#ty> for #ident #tyg #where_clause {
+            let from = target.implement(
+                quote!(::core::convert::From<#ty>),
+                quote! {
                     #[inline]
-                    fn from(#value: #ty) -> Self {
-                        #construct
-                    }
-                }
-            })
+                    fn from(#value: #ty) -> Self { #construct }
+                },
+            );
+            Some(quote! { #cfg #from })
         })
         .collect()
 }
 
 pub fn error_impl(item: &Item, cases: &[Case], eva: &syn::Path) -> TokenStream {
-    let (ig, tyg, where_clause) = item.generics.split_for_impl();
-    let ident = &item.ident;
+    let target = Target::new(&item.ident, &item.generics);
     let source = source_fn(item, cases, eva);
-    quote! {
-        #[automatically_derived]
-        impl #ig ::core::error::Error for #ident #tyg #where_clause {
-            #source
-        }
-    }
+    target.implement(quote!(::core::error::Error), source)
 }
 
 fn source_fn(item: &Item, cases: &[Case], eva: &syn::Path) -> TokenStream {

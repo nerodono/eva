@@ -836,6 +836,11 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 
 /// Defines a service and its endpoint metadata from a trait declaration.
 ///
+/// Write the annotated declaration directly in source. Generating it through `macro_rules!`
+/// is unsupported: exported helper names use source coordinates, which may coincide across
+/// expansions. This restriction can be lifted when macros 2.0 provides public module-scoped
+/// helpers without `#[macro_export]`.
+///
 /// ```rust
 /// use eva::{export, service};
 ///
@@ -958,6 +963,10 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Composes service modules into a session and a single X-macro.
+///
+/// Write the annotated declaration directly in source. As with [`service`], generating it
+/// through `macro_rules!` is unsupported because exported helpers use source coordinates
+/// for their names. Metadata callbacks can still be ordinary `macro_rules!` macros.
 ///
 /// ```rust
 /// use eva::{export, service};

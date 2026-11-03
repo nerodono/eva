@@ -57,7 +57,7 @@ pub struct Key {
 enum Shape {
     Flag,
     Value(fn(ParseStream) -> syn::Result<Box<dyn Any>>),
-    List,
+    List { optional: bool },
     Not,
 }
 
@@ -80,7 +80,15 @@ impl Key {
     pub const fn list(name: &'static str) -> Self {
         Self {
             name,
-            shape: Shape::List,
+            shape: Shape::List { optional: false },
+        }
+    }
+
+    /// `name` or `name(...)`, distinguished by [`Opts::optional_list`].
+    pub const fn optional_list(name: &'static str) -> Self {
+        Self {
+            name,
+            shape: Shape::List { optional: true },
         }
     }
 }
@@ -94,7 +102,7 @@ fn parse_boxed<T: Parse + 'static>(input: ParseStream) -> syn::Result<Box<dyn An
 enum Arg {
     Flag,
     Value(Box<dyn Any>),
-    List(Group),
+    List(Option<Group>),
     Not,
 }
 
@@ -161,11 +169,14 @@ impl Opts {
                 input.parse::<Token![=]>()?;
                 Arg::Value(parse(input)?)
             }
-            Shape::List | Shape::Not if !input.peek(token::Paren) => {
+            Shape::List { optional: true } if input.is_empty() || input.peek(Token![,]) => {
+                Arg::List(None)
+            }
+            Shape::List { .. } | Shape::Not if !input.peek(token::Paren) => {
                 let msg = format!("option `{key}` expects arguments: `{key}(...)`");
                 return Err(syn::Error::new(key.span(), msg));
             }
-            Shape::List => Arg::List(input.parse()?),
+            Shape::List { .. } => Arg::List(Some(input.parse()?)),
             Shape::Not => {
                 let content;
                 syn::parenthesized!(content in input);
@@ -229,8 +240,21 @@ impl Opts {
         name: &str,
         parse: impl FnOnce(ParseStream) -> syn::Result<T>,
     ) -> syn::Result<Option<T>> {
-        let Some((_, Arg::List(group))) = self.get(name, |s| matches!(s, Shape::List)) else {
+        self.optional_list(name, parse).map(Option::flatten)
+    }
+
+    /// `None` if absent, `Some(None)` if bare, `Some(Some(value))` with arguments.
+    pub fn optional_list<T>(
+        &self,
+        name: &str,
+        parse: impl FnOnce(ParseStream) -> syn::Result<T>,
+    ) -> syn::Result<Option<Option<T>>> {
+        let Some((_, Arg::List(group))) = self.get(name, |s| matches!(s, Shape::List { .. }))
+        else {
             return Ok(None);
+        };
+        let Some(group) = group else {
+            return Ok(Some(None));
         };
         let parser = |input: ParseStream| {
             let content;
@@ -241,7 +265,9 @@ impl Opts {
             }
             Ok(value)
         };
-        parser.parse2(group.to_token_stream()).map(Some)
+        parser
+            .parse2(group.to_token_stream())
+            .map(|value| Some(Some(value)))
     }
 
     /// The key, if it was given inside `not(...)`.
@@ -427,5 +453,39 @@ mod tests {
         })
         .unwrap_err();
         assert_eq!(err.to_string(), "unexpected token");
+    }
+
+    #[test]
+    fn optional_list_preserves_absent_bare_and_empty_forms() {
+        const TABLE: Table = Table {
+            keys: &[Key::optional_list("export")],
+            not: &[],
+        };
+        let parse = |tokens| {
+            (|input: ParseStream| {
+                Opts::parse(input, &TABLE)?.optional_list("export", |input| {
+                    let names = input.parse_terminated(syn::Ident::parse, Token![,])?;
+                    Ok(names
+                        .into_iter()
+                        .map(|name| name.to_string())
+                        .collect::<Vec<_>>())
+                })
+            })
+            .parse2(tokens)
+        };
+        assert_eq!(parse(quote!()).unwrap(), None);
+        assert_eq!(parse(quote!(export,)).unwrap(), Some(None));
+        assert_eq!(parse(quote!(export())).unwrap(), Some(Some(vec![])));
+        assert_eq!(
+            parse(quote!(export(get,))).unwrap(),
+            Some(Some(vec!["get".into()]))
+        );
+        for tokens in [
+            quote!(export, export(get)),
+            quote!(export = get),
+            quote!(export(get extra)),
+        ] {
+            assert!(parse(tokens).is_err());
+        }
     }
 }

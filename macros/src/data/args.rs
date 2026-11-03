@@ -47,7 +47,7 @@ impl Parse for Args {
 
 impl Args {
     pub fn serde(&self) -> bool {
-        self.derives.serialize || self.derives.deserialize
+        self.derives.common.serialize || self.derives.common.deserialize
     }
 
     pub fn as_static_str(&self) -> bool {
@@ -66,7 +66,7 @@ impl Args {
     }
 
     fn check_crate(&self) -> syn::Result<()> {
-        let d = &self.derives;
+        let d = &self.derives.common;
         if utils::is_dollar_crate(&self.eva) && (d.serialize || d.deserialize || d.json_schema) {
             return Err(syn::Error::new_spanned(
                 &self.eva,
@@ -79,10 +79,7 @@ impl Args {
 }
 
 pub struct Derives {
-    serialize: bool,
-    deserialize: bool,
-    json_schema: bool,
-    debug: bool,
+    common: CommonTraits,
     clone: bool,
     copy: bool,
     partial_eq: bool,
@@ -96,17 +93,8 @@ impl Derives {
     /// `not(...)` always wins over them.
     fn resolve(opts: &Opts) -> Self {
         let ord = opts.flag("ord").is_some();
-        let CommonTraits {
-            serialize,
-            deserialize,
-            json_schema,
-            debug,
-        } = opts.common();
         Self {
-            serialize,
-            deserialize,
-            json_schema,
-            debug,
+            common: opts.common(),
             clone: opts.not("Clone").is_none(),
             copy: opts.flag("copy").is_some(),
             partial_eq: opts.not("PartialEq").is_none(),
@@ -119,7 +107,7 @@ impl Derives {
     /// The derive attributes, plus serde's and schemars' container attributes.
     pub fn attrs(&self, eva: &syn::Path, item_attrs: &[syn::Attribute]) -> TokenStream {
         let std_derives = [
-            (self.debug, quote! { ::core::fmt::Debug }),
+            (self.common.debug, quote! { ::core::fmt::Debug }),
             (self.clone, quote! { ::core::clone::Clone }),
             (self.copy, quote! { ::core::marker::Copy }),
             (self.partial_eq, quote! { ::core::cmp::PartialEq }),
@@ -133,11 +121,14 @@ impl Derives {
             .map(|(_, path)| quote! { #[derive(#path)] });
 
         let serde = quote! { #eva::_priv::serde };
-        let serde_attrs = maybe(self.serialize || self.deserialize, || {
+        let serde_attrs = maybe(self.common.serialize || self.common.deserialize, || {
             let krate = serde.to_string();
-            let ser = maybe(self.serialize, || quote! { #[derive(#serde::Serialize)] });
+            let ser = maybe(
+                self.common.serialize,
+                || quote! { #[derive(#serde::Serialize)] },
+            );
             let de = maybe(
-                self.deserialize,
+                self.common.deserialize,
                 || quote! { #[derive(#serde::Deserialize)] },
             );
             let rename = maybe(!has_rename_all(item_attrs), || {
@@ -151,7 +142,7 @@ impl Derives {
             }
         });
 
-        let json_schema = maybe(self.json_schema, || {
+        let json_schema = maybe(self.common.json_schema, || {
             let schemars = quote! { #eva::_priv::schemars };
             let krate = schemars.to_string();
             quote! {

@@ -11,14 +11,11 @@ use syn::{
 
 use crate::{
     docs,
-    opts::{self, CommonTraits, Opts, Table},
-    utils::{self, Errors, maybe},
+    opts::{CommonTraits, Opts},
+    utils::{self, Errors, Target, construct, find_ident, maybe, only_field, requires_struct},
 };
 
-const OPTIONS: Table = Table {
-    keys: &[opts::CRATE],
-    not: &[opts::COMMON_NOT, &["Display"]],
-};
+use super::OPTIONS;
 
 const CONDITION_EXPECTED: &str = "expected a condition over `n`, as in `newtype(n > 5)`";
 
@@ -32,15 +29,6 @@ pub fn applies(args: &TokenStream) -> bool {
         }
         _ => false,
     }
-}
-
-/// The span of the first `name` identifier in `tokens`, through invisible groups.
-fn find_ident(tokens: TokenStream, name: &str) -> Option<Span> {
-    tokens.into_iter().find_map(|tree| match tree {
-        TokenTree::Ident(ident) if ident == name => Some(ident.span()),
-        TokenTree::Group(group) => find_ident(group.stream(), name),
-        _ => None,
-    })
 }
 
 pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
@@ -114,26 +102,9 @@ struct Item {
 /// A struct with one field, not generic and without a `#[repr]`, which the macro adds.
 fn parse_item(item: TokenStream) -> syn::Result<Item> {
     let input = syn::parse2::<syn::DeriveInput>(item)?;
-    let requires_struct = |span| syn::Error::new(span, "`newtype` requires a struct");
-    let data = match input.data {
-        syn::Data::Struct(data) => data,
-        syn::Data::Enum(data) => return Err(requires_struct(data.enum_token.span)),
-        syn::Data::Union(data) => return Err(requires_struct(data.union_token.span)),
-    };
-
+    let data = requires_struct(&input, "newtype")?;
     let mut errors = Errors::default();
-    let mut fields = data.fields.iter().cloned();
-    let field = match (fields.next(), fields.next()) {
-        (Some(field), None) => Some(field),
-        _ => {
-            let msg = "`newtype` requires exactly one field";
-            errors.push(match &data.fields {
-                syn::Fields::Unit => syn::Error::new_spanned(&input.ident, msg),
-                fields => syn::Error::new_spanned(fields, msg),
-            });
-            None
-        }
-    };
+    let field = errors.ok(only_field(&input.ident, &data.fields)).cloned();
     if !input.generics.params.is_empty() {
         let msg = "#[int] types cannot be generic";
         errors.push(syn::Error::new_spanned(&input.generics, msg));
@@ -157,15 +128,18 @@ fn parse_item(item: TokenStream) -> syn::Result<Item> {
         Some(name) => syn::Member::Named(name.clone()),
         None => syn::Member::Unnamed(syn::Index::from(0)),
     };
+    let fields = data.fields.clone();
+    let struct_token = data.struct_token;
+    let semi_token = data.semi_token;
     Ok(Item {
         inner: syn::ItemStruct {
             attrs: input.attrs,
             vis: input.vis,
-            struct_token: data.struct_token,
+            struct_token,
             ident: input.ident,
             generics: input.generics,
-            fields: data.fields,
-            semi_token: data.semi_token,
+            fields,
+            semi_token,
         },
         field,
         member,
@@ -201,10 +175,8 @@ impl Newtype {
 
     /// `Self(inner)` or `Self { field: inner }`.
     fn construct(&self, inner: &syn::Ident) -> TokenStream {
-        match &self.item.field.ident {
-            Some(field) => quote_spanned!(Span::mixed_site()=> Self { #field: #inner }),
-            None => quote_spanned!(Span::mixed_site()=> Self(#inner)),
-        }
+        let fields = construct(&self.item.inner.fields, [quote!(#inner)].into_iter());
+        quote_spanned!(Span::mixed_site()=> Self #fields)
     }
 
     fn definition(&self) -> TokenStream {
@@ -308,20 +280,23 @@ impl Newtype {
         let integer = self.integer();
         let infallible = maybe(self.args.condition.is_none(), || self.infallible());
         let cmp = self.cmp();
-        let debug = maybe(traits.debug, || self.fmt("Debug"));
-        let display = maybe(self.args.display, || self.fmt("Display"));
-        let serialize = maybe(traits.serialize, || self.serialize());
-        let deserialize = maybe(traits.deserialize, || self.deserialize());
+        let eva = &self.args.eva;
+        let target = Target::new(self.ident(), &self.item.inner.generics);
+        let value_traits = target.value_traits(
+            traits,
+            self.args.display,
+            eva,
+            self.prim(),
+            quote!(&Self::prim(self)),
+            quote!(#eva::int::deserialize),
+        );
         let json_schema = maybe(traits.json_schema, || self.json_schema());
 
         quote! {
             #integer
             #infallible
             #cmp
-            #debug
-            #display
-            #serialize
-            #deserialize
+            #value_traits
             #json_schema
         }
     }
@@ -430,57 +405,9 @@ impl Newtype {
         }
     }
 
-    /// `Debug` or `Display`, as the number.
-    fn fmt(&self, trait_name: &str) -> TokenStream {
-        let name = self.ident();
-        let prim = self.prim();
-        let fmt_trait = format_ident!("{trait_name}");
-        quote_spanned! {Span::mixed_site()=>
-            #[automatically_derived]
-            impl ::core::fmt::#fmt_trait for #name {
-                fn fmt(&self, __f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                    <#prim as ::core::fmt::#fmt_trait>::fmt(&Self::prim(self), __f)
-                }
-            }
-        }
-    }
-
-    fn serialize(&self) -> TokenStream {
-        let name = self.ident();
-        let prim = self.prim();
-        let eva = &self.args.eva;
-        quote_spanned! {Span::mixed_site()=>
-            #[automatically_derived]
-            impl #eva::_priv::serde::Serialize for #name {
-                fn serialize<__S: #eva::_priv::serde::Serializer>(
-                    &self,
-                    __serializer: __S,
-                ) -> ::core::result::Result<__S::Ok, __S::Error> {
-                    <#prim as #eva::_priv::serde::Serialize>::serialize(&Self::prim(self), __serializer)
-                }
-            }
-        }
-    }
-
-    fn deserialize(&self) -> TokenStream {
-        let name = self.ident();
-        let eva = &self.args.eva;
-        quote_spanned! {Span::mixed_site()=>
-            #[automatically_derived]
-            impl<'de> #eva::_priv::serde::Deserialize<'de> for #name {
-                fn deserialize<__D: #eva::_priv::serde::Deserializer<'de>>(
-                    __deserializer: __D,
-                ) -> ::core::result::Result<Self, __D::Error> {
-                    #eva::int::deserialize(__deserializer)
-                }
-            }
-        }
-    }
-
     /// The field's schema, with the doc comment as `description` in place of the field's.
     fn json_schema(&self) -> TokenStream {
-        let name = self.ident();
-        let schema_name = name.to_string();
+        let target = Target::new(self.ident(), &self.item.inner.generics);
         let inner = self.inner();
         let schemars = {
             let eva = &self.args.eva;
@@ -499,23 +426,14 @@ impl Newtype {
             },
         };
 
-        quote_spanned! {Span::mixed_site()=>
-            #[automatically_derived]
-            impl #schemars::JsonSchema for #name {
-                fn schema_name() -> ::std::borrow::Cow<'static, ::core::primitive::str> {
-                    ::std::borrow::Cow::Borrowed(#schema_name)
-                }
-
-                fn schema_id() -> ::std::borrow::Cow<'static, ::core::primitive::str> {
-                    ::std::borrow::Cow::Borrowed(::core::concat!(::core::module_path!(), "::", #schema_name))
-                }
-
-                fn json_schema(__generator: &mut #schemars::SchemaGenerator) -> #schemars::Schema {
-                    let mut __schema = <#inner as #schemars::JsonSchema>::json_schema(__generator);
-                    #description
-                    __schema
-                }
-            }
-        }
+        let generator = utils::local("generator");
+        target.json_schema(
+            &self.args.eva,
+            quote_spanned! {Span::mixed_site()=>
+                let mut __schema = <#inner as #schemars::JsonSchema>::json_schema(#generator);
+                #description
+                __schema
+            },
+        )
     }
 }

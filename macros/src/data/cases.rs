@@ -4,7 +4,7 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use crate::utils::Errors;
+use crate::utils::{Errors, construct, delimit};
 
 use super::{Item, Kind, display::DisplayArg};
 
@@ -53,24 +53,12 @@ impl Case<'_> {
 
     /// Builds the case from `value`, its only field.
     pub fn construct(&self, value: &syn::Ident) -> TokenStream {
-        let value = match self.fields.iter().next().and_then(|f| f.ident.as_ref()) {
-            Some(name) => quote! { #name: #value },
-            None => quote! { #value },
-        };
-        self.with_path(delimit(self.fields, value))
+        self.with_path(construct(self.fields, [quote!(#value)].into_iter()))
     }
 
     fn with_path(&self, rest: TokenStream) -> TokenStream {
         let path = &self.path;
         quote! { #path #rest }
-    }
-}
-
-fn delimit(fields: &syn::Fields, inside: TokenStream) -> TokenStream {
-    match fields {
-        syn::Fields::Named(_) => quote! { { #inside } },
-        syn::Fields::Unnamed(_) => quote! { (#inside) },
-        syn::Fields::Unit => quote! {},
     }
 }
 

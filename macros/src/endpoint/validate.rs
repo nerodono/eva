@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
-use proc_macro2::{Span, TokenStream, TokenTree};
+use proc_macro2::{TokenStream, TokenTree};
 use quote::ToTokens;
 
-use crate::utils::Errors;
+use crate::utils::{Errors, find_ident};
 
 pub struct Params {
     pub state: syn::PatType,
@@ -108,17 +108,9 @@ fn params(sig: &syn::Signature, errors: &mut Errors) -> Option<Params> {
 }
 
 fn no_impl_trait(ty: &syn::Type, problem: &str, errors: &mut Errors) {
-    if let Some(span) = impl_keyword(ty.to_token_stream()) {
+    if let Some(span) = find_ident(ty.to_token_stream(), "impl") {
         errors.push(syn::Error::new(span, message(problem)));
     }
-}
-
-fn impl_keyword(tokens: TokenStream) -> Option<Span> {
-    tokens.into_iter().find_map(|token| match token {
-        TokenTree::Ident(ident) if ident == "impl" => Some(ident.span()),
-        TokenTree::Group(group) => impl_keyword(group.stream()),
-        _ => None,
-    })
 }
 
 /// `impl<generics> Endpoint<A, S> for Name` leaves a generic parameter that is absent from `A`

@@ -4,7 +4,7 @@ use quote::quote;
 /// The service supplies the success lifetimes; `Output` is instantiated only by an endpoint,
 /// in its local namespace. Keeping the helper on the method also supports re-exported methods.
 pub(crate) fn export(method: &syn::Ident, lifetimes: &[syn::Lifetime]) -> TokenStream {
-    let export = crate::service::unique("endpoint_scope", method);
+    let export = crate::utils::unique_ident("endpoint_scope", method.span());
     let generics = (!lifetimes.is_empty()).then(|| quote!(<#(#lifetimes),*>));
     quote! {
         #[doc(hidden)]

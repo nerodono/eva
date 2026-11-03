@@ -3,10 +3,18 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Token,
     parse::{Parse, ParseStream},
-    punctuated::Punctuated,
     spanned::Spanned,
+};
+
+use crate::{
+    opts::{Key, Opts, Table},
+    utils::{comma_list, unique_ident},
+};
+
+const OPTIONS: Table = Table {
+    keys: &[Key::value::<syn::Ident>("name"), Key::list("flags")],
+    not: &[],
 };
 
 struct Options {
@@ -15,41 +23,21 @@ struct Options {
 }
 impl Parse for Options {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut name = None;
-        let mut flags = None;
-        while !input.is_empty() {
-            let key: syn::Ident = input.parse()?;
-            match key.to_string().as_str() {
-                "name" if name.is_none() => {
-                    input.parse::<Token![=]>()?;
-                    name = Some(input.parse()?);
-                }
-                "flags" if flags.is_none() => {
-                    let content;
-                    syn::parenthesized!(content in input);
-                    let list = Punctuated::<syn::Ident, Token![,]>::parse_terminated(&content)?;
-                    let mut seen = HashSet::new();
-                    for flag in &list {
-                        if !seen.insert(flag.to_string()) {
-                            return Err(syn::Error::new(flag.span(), "duplicate flag"));
-                        }
-                    }
-                    flags = Some(list.into_iter().collect());
-                }
-                _ => {
-                    return Err(syn::Error::new(
-                        key.span(),
-                        "expected `name = for_each_endpoint` or `flags(...)`, once each",
-                    ));
+        let opts = Opts::parse(input, &OPTIONS)?;
+        let flags = opts.list("flags", |input| {
+            let list = comma_list::<syn::Ident>(input)?;
+            let mut seen = HashSet::new();
+            for flag in &list {
+                if !seen.insert(flag.to_string()) {
+                    return Err(syn::Error::new(flag.span(), "duplicate flag"));
                 }
             }
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
+            Ok(list)
+        })?;
         Ok(Self {
-            name: name.unwrap_or_else(|| syn::parse_quote!(for_each_endpoint)),
+            name: opts
+                .value("name")
+                .unwrap_or_else(|| syn::parse_quote!(for_each_endpoint)),
             flags: flags.unwrap_or_default(),
         })
     }
@@ -74,7 +62,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     let vis = &item.vis;
     let attrs = &item.attrs;
     let features = format_ident!("{}Features", name);
-    let export = super::service::unique("export", name);
+    let export = unique_ident("export", name.span());
     let macro_name = opts.name;
     let mut bounds = Vec::new();
     let mut accessors = Vec::new();
@@ -104,7 +92,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         }
         let path = &ty.path;
         let exported = quote!($crate::#macro_name::#accessor);
-        let import = super::service::unique("export_service", accessor);
+        let import = unique_ident("export_service", accessor.span());
         imports.push(quote!(use #path as #import;));
         exports.push(quote! {
             pub mod #accessor {
@@ -120,10 +108,10 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             }
         });
         exported_chain.push((exported, accessor));
-        local_chain.push((quote!(#import), accessor));
+        local_chain.push((quote!(#path), accessor));
     }
     let invoke = chain(&exported_chain, quote!($($callback)::+));
-    let check = super::service::unique("export_flags", name);
+    let check = unique_ident("export_flags", name.span());
     let check_invoke = chain(&local_chain, quote!(#check));
     let allowed = &opts.flags;
     Ok(quote! {

@@ -7,7 +7,7 @@ error: unknown service flag `wirte`; declare it in `#[export(flags(...))]`
 12 | #[export(flags(write))]
    | ----------------------- in this attribute macro expansion
    |
-   = note: this error originates in the macro `__eva_export_service_users_5::for_each_endpoint` which comes from the expansion of the attribute macro `export` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `Users::for_each_endpoint` which comes from the expansion of the attribute macro `export` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: unknown service flag `stream`; declare it in `#[export(flags(...))]`
   --> tests/ui/export/unknown-flag.rs:8:20
@@ -18,4 +18,4 @@ error: unknown service flag `stream`; declare it in `#[export(flags(...))]`
 12 | #[export(flags(write))]
    | ----------------------- in this attribute macro expansion
    |
-   = note: this error originates in the macro `__eva_export_service_users_5::for_each_endpoint` which comes from the expansion of the attribute macro `export` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `Users::for_each_endpoint` which comes from the expansion of the attribute macro `export` (in Nightly builds, run with -Z macro-backtrace for more info)

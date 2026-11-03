@@ -2,17 +2,14 @@ use proc_macro2::TokenStream;
 use syn::{
     Token,
     parse::{Parse, ParseStream},
-    punctuated::Punctuated,
 };
+
+use crate::utils::{Errors, comma_list};
 
 fn list(input: ParseStream) -> syn::Result<Vec<syn::Ident>> {
     let content;
     syn::bracketed!(content in input);
-    Ok(
-        Punctuated::<syn::Ident, Token![,]>::parse_terminated(&content)?
-            .into_iter()
-            .collect(),
-    )
+    comma_list(&content)
 }
 
 fn braced(input: ParseStream) -> syn::Result<TokenStream> {
@@ -38,23 +35,15 @@ impl Parse for Check {
 
 pub fn check(input: TokenStream) -> syn::Result<TokenStream> {
     let Check { allowed, flags } = syn::parse2(input)?;
-    let error = flags
-        .iter()
-        .filter(|flag| !allowed.contains(flag))
-        .map(|flag| {
-            syn::Error::new(
-                flag.span(),
-                format!("unknown service flag `{flag}`; declare it in `#[export(flags(...))]`"),
-            )
-        })
-        .reduce(|mut all, error| {
-            all.combine(error);
-            all
-        });
-    match error {
-        Some(error) => Err(error),
-        None => Ok(TokenStream::new()),
+    let mut errors = Errors::default();
+    for flag in flags.iter().filter(|flag| !allowed.contains(flag)) {
+        errors.push(syn::Error::new(
+            flag.span(),
+            format!("unknown service flag `{flag}`; declare it in `#[export(flags(...))]`"),
+        ));
     }
+    errors.finish()?;
+    Ok(TokenStream::new())
 }
 
 struct IfFlag {

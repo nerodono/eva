@@ -4,17 +4,18 @@ use syn::spanned::Spanned as _;
 
 use crate::{
     docs,
-    utils::{self, Errors, join, local, maybe},
+    utils::{self, Errors, construct, join, local, maybe, requires_struct},
 };
 
-use super::{KindImpls, Target, args::Args, construct, requires_struct};
+use super::{KindImpls, Target, args::Args, common};
 
 pub fn expand<'a>(
     input: &'a syn::DeriveInput,
     error: &syn::Type,
     args: &Args,
 ) -> syn::Result<KindImpls<'a>> {
-    let (fields, ()) = utils::both(requires_struct(input, "fixed"), reject_repr(&input.attrs))?;
+    let (data, ()) = utils::both(requires_struct(input, "fixed"), reject_repr(&input.attrs))?;
+    let fields = &data.fields;
     let eva = &args.eva;
     let target = Target {
         ident: &input.ident,
@@ -26,7 +27,7 @@ pub fn expand<'a>(
     let mut impls = layout.definition_check();
     impls.extend([
         schema,
-        pattern(&target, fields, eva),
+        common::pattern(&target, fields, eva),
         fixed_utf8(&target, eva),
         as_str(&target, &layout, eva),
         from_str(&target, &layout, fields, error, eva),
@@ -115,60 +116,22 @@ impl Layout {
 }
 
 fn json_schema(target: &Target, input: &syn::DeriveInput, eva: &syn::Path) -> TokenStream {
-    let (impl_generics, ty, where_clause) = target.split();
-    let ident = &input.ident;
     let schemars = join(&join(eva, "_priv"), "schemars");
-    let cow = quote! { ::std::borrow::Cow<'static, ::core::primitive::str> };
-    // Instantiations of a generic type differ in length and pattern, so each needs its own id.
-    let schema_id = if input.generics.params.is_empty() {
-        quote! { ::core::concat!(::core::module_path!(), "::", ::core::stringify!(#ident)) }
-    } else {
-        quote! { ::core::any::type_name::<Self>() }
-    };
     let description = docs::schema_description(&input.attrs);
     let len = local("len");
-
-    quote! {
-        #[automatically_derived]
-        impl #impl_generics #schemars::JsonSchema for #ty #where_clause {
-            #[inline]
-            fn schema_name() -> #cow {
-                ::std::borrow::Cow::Borrowed(::core::stringify!(#ident))
-            }
-
-            #[inline]
-            fn schema_id() -> #cow {
-                ::std::borrow::Cow::Borrowed(#schema_id)
-            }
-
-            fn json_schema(_: &mut #schemars::SchemaGenerator) -> #schemars::Schema {
-                let #len = ::core::mem::size_of::<Self>();
-                #schemars::json_schema!({
-                    "type": "string",
-                    #description
-                    "minLength": #len,
-                    "maxLength": #len,
-                    "pattern": <Self as #eva::str::HasPattern>::regex_pat_fullmatch(),
-                })
-            }
-        }
-    }
-}
-
-fn pattern(target: &Target, fields: &syn::Fields, eva: &syn::Path) -> TokenStream {
-    let (impl_generics, ty, where_clause) = target.split();
-    let field_tys = fields.iter().map(|field| &field.ty);
-    let buf = local("buf");
-
-    quote! {
-        #[automatically_derived]
-        impl #impl_generics #eva::str::HasPattern for #ty #where_clause {
-            #[inline]
-            fn pat_into(#buf: &mut ::std::string::String) {
-                #(<#field_tys as #eva::str::HasPattern>::pat_into(#buf);)*
-            }
-        }
-    }
+    target.json_schema(
+        eva,
+        quote! {
+            let #len = ::core::mem::size_of::<Self>();
+            #schemars::json_schema!({
+                "type": "string",
+                #description
+                "minLength": #len,
+                "maxLength": #len,
+                "pattern": <Self as #eva::str::HasPattern>::regex_pat_fullmatch(),
+            })
+        },
+    )
 }
 
 /// Sound because the where-clause makes every field `FixedUtf8` (alignment 1, initialized UTF-8)
@@ -207,7 +170,6 @@ fn from_str(
     error: &syn::Type,
     eva: &syn::Path,
 ) -> TokenStream {
-    let (impl_generics, ty, where_clause) = target.split();
     let check = layout.use_check();
     let (s, rest, expected) = (local("s"), local("rest"), local("expected"));
     let values = fields.iter().map(|field| {
@@ -216,9 +178,9 @@ fn from_str(
     });
     let construct = construct(fields, values);
 
-    quote! {
-        #[automatically_derived]
-        impl #impl_generics ::core::str::FromStr for #ty #where_clause {
+    target.implement(
+        quote!(::core::str::FromStr),
+        quote! {
             type Err = #error;
 
             #[inline]
@@ -233,8 +195,8 @@ fn from_str(
                 let mut #rest = #s;
                 ::core::result::Result::Ok(Self #construct)
             }
-        }
-    }
+        },
+    )
 }
 
 /// `path` reported at `span` but resolved as written, so `$crate` keeps working.

@@ -1,10 +1,7 @@
-use std::{
-    collections::HashSet,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::collections::HashSet;
 
 use proc_macro2::{Group, TokenStream, TokenTree};
-use quote::{ToTokens, format_ident, quote};
+use quote::{ToTokens, quote};
 use syn::{
     Token,
     parse::{Parse, ParseStream, Parser},
@@ -13,18 +10,21 @@ use syn::{
     visit_mut::VisitMut,
 };
 
-static SERIAL: AtomicUsize = AtomicUsize::new(0);
+use crate::{
+    docs,
+    opts::{Key, Opts, Table},
+    utils::{comma_list, unique_ident},
+};
 
-pub(super) fn unique(prefix: &str, name: &syn::Ident) -> syn::Ident {
-    format_ident!(
-        "__eva_{}_{}_{}",
-        prefix,
-        name.to_string().trim_start_matches("r#"),
-        SERIAL.fetch_add(1, Ordering::Relaxed)
-    )
-}
+const OPTIONS: Table = Table {
+    keys: &[
+        Key::optional_list("export"),
+        Key::value::<syn::Path>("result"),
+        Key::value::<syn::Type>("error"),
+    ],
+    not: &[],
+};
 
-#[derive(Default)]
 struct Options {
     export: Option<Option<Vec<syn::Ident>>>,
     result: Option<syn::Path>,
@@ -33,44 +33,12 @@ struct Options {
 
 impl Parse for Options {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut opts = Self::default();
-        while !input.is_empty() {
-            let name: syn::Ident = input.parse()?;
-            match name.to_string().as_str() {
-                "export" if opts.export.is_none() => {
-                    opts.export = Some(if input.peek(syn::token::Paren) {
-                        let content;
-                        syn::parenthesized!(content in input);
-                        Some(
-                            Punctuated::<syn::Ident, Token![,]>::parse_terminated(&content)?
-                                .into_iter()
-                                .collect(),
-                        )
-                    } else {
-                        None
-                    });
-                }
-                "result" if opts.result.is_none() => {
-                    input.parse::<Token![=]>()?;
-                    opts.result = Some(input.parse()?);
-                }
-                "error" if opts.error.is_none() => {
-                    input.parse::<Token![=]>()?;
-                    opts.error = Some(input.parse()?);
-                }
-                _ => {
-                    return Err(syn::Error::new(
-                        name.span(),
-                        "unknown or duplicate service option",
-                    ));
-                }
-            }
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
-        Ok(opts)
+        let opts = Opts::parse(input, &OPTIONS)?;
+        Ok(Self {
+            export: opts.optional_list("export", comma_list)?,
+            result: opts.value("result"),
+            error: opts.value("error"),
+        })
     }
 }
 
@@ -176,7 +144,7 @@ fn data_attrs(attrs: Vec<syn::Attribute>, error: bool) -> syn::Result<(TokenStre
 }
 
 fn attributes(attr: &syn::Attribute) -> syn::Result<Vec<syn::Attribute>> {
-    let metas = attr.parse_args_with(Punctuated::<syn::Meta, Token![,]>::parse_terminated)?;
+    let metas = attr.parse_args_with(comma_list::<syn::Meta>)?;
     Ok(metas
         .into_iter()
         .map(|meta| syn::parse_quote!(#[#meta]))
@@ -228,7 +196,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         .result
         .unwrap_or_else(|| syn::parse_quote!(::core::result::Result));
     // Resolve the configured constructor before introducing the service's own `Result`.
-    let result_import = unique("result", name);
+    let result_import = unique_ident("result", name.span());
     let mut modules = Vec::new();
     let mut methods = Vec::new();
     let mut clients = Vec::new();
@@ -313,16 +281,12 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         let mut method_attrs = Vec::new();
         for attr in &method.attrs {
             if attr.path().is_ident("flags") {
-                flags.extend(
-                    attr.parse_args_with(Punctuated::<syn::Ident, Token![,]>::parse_terminated)?,
-                );
+                flags.extend(attr.parse_args_with(comma_list::<syn::Ident>)?);
             } else if attr.path().is_ident("errors") {
                 if errors.is_some() {
                     return Err(syn::Error::new(attr.span(), "duplicate errors attribute"));
                 }
-                errors = Some(
-                    attr.parse_args_with(Punctuated::<ErrorVariant, Token![,]>::parse_terminated)?,
-                );
+                errors = Some(attr.parse_args_with(comma_list::<ErrorVariant>)?);
             } else if attr.path().is_ident("error") {
                 error_ty = Some(attr.parse_args::<syn::Type>()?);
             } else if attr.path().is_ident("args") {
@@ -346,17 +310,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 "use either errors(...) or a shared error type",
             ));
         }
-        let doc_strings = method_attrs
-            .iter()
-            .filter_map(|a| {
-                if let syn::Meta::NameValue(v) = &a.meta
-                    && a.path().is_ident("doc")
-                {
-                    return Some(v.value.clone());
-                }
-                None
-            })
-            .collect::<Vec<_>>();
+        let doc_strings: Vec<_> = docs::exprs(&method_attrs).collect();
         let mut lifetimes = Lifetimes {
             names: Vec::new(),
             infer: true,
@@ -545,7 +499,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     } else {
         quote!()
     };
-    let export = unique("service", name);
+    let export = unique_ident("service", name.span());
     Ok(quote! {
         use #result as #result_import;
         #(#docs)*
