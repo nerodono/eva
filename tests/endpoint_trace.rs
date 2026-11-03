@@ -46,7 +46,7 @@ async fn Plain(_state: (), args: u32) -> u32 {
 
 #[eva::service]
 pub trait Greetings {
-    fn greet(name: String) -> ok! { message: String };
+    fn greet(name: String) -> Struct! { message: String };
 }
 
 #[endpoint(Greetings::greet)]

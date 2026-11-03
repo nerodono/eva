@@ -776,7 +776,7 @@ pub fn int(args: TokenStream, item: TokenStream) -> TokenStream {
 /// ```rust
 /// #[eva::service]
 /// pub trait Greetings {
-///     fn greet(name: String) -> ok! { message: String };
+///     fn greet(name: String) -> Struct! { message: String };
 /// }
 ///
 /// pub struct State { pub prefix: String }
@@ -853,7 +853,7 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 ///     fn get(id: u64) -> String;
 ///
 ///     #[flags(write)]
-///     fn create(name: String) -> ok! { id: u64 };
+///     fn create(name: String) -> Struct! { id: u64 };
 /// }
 ///
 /// #[export(flags(write))]
@@ -881,22 +881,31 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 /// in the service module.
 ///
 /// `-> T` creates `pub struct Ok(pub T)` with `From<T>` and transparent
-/// serialization. To customize that wrapper, use `ok!(...)` with outer attributes
-/// before the type: `-> ok!(#[data(copy)] user::Id)`. `-> ok!(T)` is equivalent to `-> T`.
-/// `-> ok! { field: T }` creates a named-field success structure. `ok!` is consumed
-/// by the attribute; it needs no import. Omitted return types mean `()`.
-/// Inner attributes at the beginning of `ok! { ... }` apply to the generated structure:
+/// serialization. To customize that wrapper, put `#[ok(...)]` on the method,
+/// for example `#[ok(data(copy))] fn id() -> u64;`. Omitted return types mean `()`.
+/// `-> Struct! { field: T }` creates a success structure with public named fields;
+/// `-> Enum! { Record { field: T }, Tuple(T), Simple }` creates a success enum.
+/// Both forms define the method's `Ok` type and accept ordinary Rust field and variant
+/// attributes. Inner attributes at the beginning apply to the generated type:
 ///
 /// ```rust
 /// use eva::service;
 ///
 /// #[service]
 /// pub trait Health {
-///     fn status() -> ok! {
+///     fn status() -> Struct! {
 ///         #![data(copy)]
 ///         #![derive(Default)]
 ///
 ///         ready: bool,
+///     };
+///
+///     fn type_of_num(num: i8) -> Enum! {
+///         #![data(copy)]
+///         #![serde(rename_all = "snake_case")]
+///
+///         Even,
+///         Odd,
 ///     };
 /// }
 /// # fn main() {}
@@ -922,19 +931,24 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 /// modules do not define an `Output` alias. A bound [`endpoint`] provides `this::Output`
 /// locally for its implementation.
 ///
-/// Generated data uses `#[eva::data]`. `#[args(...)]` and `#[err(...)]` forward
-/// attributes to the corresponding type; attributes inside `ok!` customize `Ok`.
+/// Generated data uses `#[eva::data]`. `#[args(...)]`, `#[ok(...)]` and `#[err(...)]`
+/// forward attributes to the corresponding type; inner attributes inside `Struct!`
+/// and `Enum!` also customize `Ok`.
 /// A supplied `data(...)` replaces its default configuration, except that `Err` always
 /// keeps `error`. A stream argument can use
 /// `#[args(data(not(Debug, serde, schemars, Clone, PartialEq)))]`. Argument and
-/// `ok!` field attributes are preserved, including serde defaults and documentation.
+/// response field attributes are preserved, including serde defaults and documentation.
+/// Explicit lifetimes in response fields are carried into `Ok` and must occur in an
+/// argument type, for both structures and enums.
 ///
 /// `embed! { ... }` places ordinary Rust items in the preceding method's module.
 /// It must follow a method; whitespace does not affect this association.
-/// In method declarations, `this![...]` prefixes its contents with that method's
-/// path. It accepts tokens, including generic arguments and nested paths, rather
-/// than just an identifier. All three helpers (`ok!`, `this!`, `embed!`) are
-/// consumed by `service` and need no imports. Inside the method module `Ok` and `Err`
+/// In method declarations and embedded items, `this::X` refers to `X` in that method's
+/// module. Each method module and client method gets its own ordinary `this` import;
+/// generic arguments, nested paths and uses inside other macros follow Rust's normal
+/// name resolution. `this` is reserved for this import. Nested embedded modules can
+/// import it with `use super::this;`. `Struct!`, `Enum!` and `embed!` are consumed by
+/// `service` and need no imports. Inside the method module `Ok` and `Err`
 /// name the generated types, so embedded code uses qualified result constructors, such as
 /// `::core::result::Result::Ok` and `::core::result::Result::Err` for the standard container.
 ///
@@ -943,7 +957,7 @@ pub fn rast_gawno(_item: TokenStream) -> TokenStream {
 ///
 /// #[service(export)]
 /// pub trait Values {
-///     fn get(value: this![Value<i32>]) -> ok! { value: this![Value<i32>] };
+///     fn get(value: this::Value<i32>) -> Struct! { value: this::Value<i32> };
 ///     embed! {
 ///         #[eva::data]
 ///         pub struct Value<T>(pub T);

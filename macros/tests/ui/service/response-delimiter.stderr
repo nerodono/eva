@@ -1,0 +1,11 @@
+error: expected Struct! { ... } or Enum! { ... }
+ --> tests/ui/service/response-delimiter.rs:3:17
+  |
+3 |     fn get() -> Struct!(value: String);
+  |                 ^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected Struct! { ... } or Enum! { ... }
+ --> tests/ui/service/response-delimiter.rs:8:17
+  |
+8 |     fn get() -> Enum![Simple];
+  |                 ^^^^^^^^^^^^^

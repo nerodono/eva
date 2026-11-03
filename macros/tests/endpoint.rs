@@ -185,7 +185,7 @@ mod bound {
 
     #[eva::service]
     pub trait Greetings {
-        fn greet(name: String) -> ok! { message: String };
+        fn greet(name: String) -> Struct! { message: String };
         fn length(name: &str) -> usize;
         fn echo<'a>(name: &'a str) -> &'a str;
     }
@@ -261,8 +261,8 @@ mod bound {
 
     #[eva::service(export)]
     pub trait Choices {
-        #[errors(Empty(this![Empty]))]
-        fn operation(name: &str) -> this![Value];
+        #[errors(Empty(this::Empty))]
+        fn operation(name: &str) -> this::Value;
         embed! {
             #[eva::data]
             pub enum Value {

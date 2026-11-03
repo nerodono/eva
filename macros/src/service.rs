@@ -1,11 +1,9 @@
 use std::collections::HashSet;
 
-use proc_macro2::{Group, TokenStream, TokenTree};
-use quote::{ToTokens, quote};
+use proc_macro2::TokenStream;
+use quote::quote;
 use syn::{
-    Token,
     parse::{Parse, ParseStream, Parser},
-    punctuated::Punctuated,
     spanned::Spanned,
     visit_mut::VisitMut,
 };
@@ -40,46 +38,6 @@ impl Parse for Options {
             error: opts.value("error"),
         })
     }
-}
-
-fn qualify_this(tokens: TokenStream, root: &TokenStream) -> syn::Result<TokenStream> {
-    let tokens: Vec<_> = tokens.into_iter().collect();
-    let mut output = TokenStream::new();
-    let mut i = 0;
-    while i < tokens.len() {
-        if let [
-            TokenTree::Ident(name),
-            TokenTree::Punct(bang),
-            TokenTree::Group(body),
-            ..,
-        ] = &tokens[i..]
-            && name == "this"
-            && bang.as_char() == '!'
-        {
-            if body.stream().is_empty() {
-                return Err(syn::Error::new(
-                    body.span(),
-                    "expected tokens in this![...]",
-                ));
-            }
-            let tail = qualify_this(body.stream(), root)?;
-            output.extend(quote!(#root::#tail));
-            i += 3;
-        } else {
-            let token = match &tokens[i] {
-                TokenTree::Group(group) => {
-                    let mut expanded =
-                        Group::new(group.delimiter(), qualify_this(group.stream(), root)?);
-                    expanded.set_span(group.span());
-                    TokenTree::Group(expanded)
-                }
-                token => token.clone(),
-            };
-            output.extend([token]);
-            i += 1;
-        }
-    }
-    Ok(output)
 }
 
 struct ErrorVariant {
@@ -224,8 +182,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                     "embed! must follow a service method",
                 ));
             };
-            let tokens = qualify_this(block.mac.tokens.clone(), &quote!(self))?;
-            embedded.extend(syn::parse2::<syn::File>(tokens)?.items);
+            embedded.extend(syn::parse2::<syn::File>(block.mac.tokens.clone())?.items);
             continue;
         }
         return Err(syn::Error::new(
@@ -233,11 +190,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             "expected a service method or embed! { ... }",
         ));
     }
-    for (original, embedded) in declarations {
-        let method = syn::parse2::<syn::TraitItemFn>(qualify_this(
-            original.to_token_stream(),
-            &quote!(self),
-        )?)?;
+    for (method, embedded) in declarations {
         let sig = &method.sig;
         let ident = &sig.ident;
         if ["new", "into_inner", "inner_mut"].contains(&ident.to_string().as_str()) {
@@ -270,11 +223,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         }
         let mut flags = Vec::<syn::Ident>::new();
         let mut errors = None;
-        let mut error_ty = opts
-            .error
-            .as_ref()
-            .map(|ty| syn::parse2::<syn::Type>(qualify_this(ty.to_token_stream(), &quote!(self))?))
-            .transpose()?;
+        let mut error_ty = opts.error.clone();
         let mut args_attrs = Vec::new();
         let mut ok_attrs = Vec::new();
         let mut err_attrs = Vec::new();
@@ -319,7 +268,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
         let mut params = Vec::new();
         let mut values = Vec::new();
         let mut field_names = HashSet::new();
-        for (arg, original_arg) in sig.inputs.iter().zip(&original.sig.inputs) {
+        for arg in &sig.inputs {
             let syn::FnArg::Typed(arg) = arg else {
                 return Err(syn::Error::new(
                     arg.span(),
@@ -338,17 +287,9 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             let field = &pat.ident;
             let mut ty = (*arg.ty).clone();
             lifetimes.visit_type_mut(&mut ty);
-            let syn::FnArg::Typed(original_arg) = original_arg else {
-                unreachable!()
-            };
-            let mut param_ty: syn::Type = syn::parse2(qualify_this(
-                original_arg.ty.to_token_stream(),
-                &quote!(self::#ident),
-            )?)?;
-            lifetimes.visit_type_mut(&mut param_ty);
             let attrs = &arg.attrs;
             fields.push(quote!(#(#attrs)* pub #field: #ty));
-            params.push(quote!(#field: #param_ty));
+            params.push(quote!(#field: #ty));
             values.push(field);
         }
         let args_generics = generics(&lifetimes.names);
@@ -356,52 +297,55 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             names: Vec::new(),
             infer: false,
         };
-        let ok_tokens = match &sig.output {
-            syn::ReturnType::Type(_, ty) if matches!(&**ty, syn::Type::Macro(m) if m.mac.path.is_ident("ok") && matches!(m.mac.delimiter, syn::MacroDelimiter::Brace(_))) =>
-            {
-                let syn::Type::Macro(m) = &**ty else {
-                    unreachable!()
-                };
+        let mut ty = match &sig.output {
+            syn::ReturnType::Type(_, ty) => (**ty).clone(),
+            _ => syn::parse_quote!(()),
+        };
+        let ok_tokens = match &mut ty {
+            syn::Type::Macro(m) if m.mac.path.is_ident("Struct") || m.mac.path.is_ident("Enum") => {
+                if !matches!(m.mac.delimiter, syn::MacroDelimiter::Brace(_)) {
+                    return Err(syn::Error::new_spanned(
+                        &m.mac,
+                        "expected Struct! { ... } or Enum! { ... }",
+                    ));
+                }
                 let parser = |input: ParseStream| {
                     let attrs = syn::Attribute::parse_inner(input)?;
-                    let fields = Punctuated::<syn::Field, Token![,]>::parse_terminated_with(
-                        input,
-                        syn::Field::parse_named,
-                    )?;
-                    Ok((attrs, fields))
+                    let body = input.parse::<TokenStream>()?;
+                    Ok((attrs, body))
                 };
-                let (attrs, mut fields) = parser.parse2(m.mac.tokens.clone())?;
+                let (attrs, body) = parser.parse2(m.mac.tokens.clone())?;
                 ok_attrs.extend(attrs.into_iter().map(|mut attr| {
                     attr.style = syn::AttrStyle::Outer;
                     attr
                 }));
-                // Parse fields without requiring callers to spell `pub`.
-                for field in &mut fields {
-                    field.vis = syn::parse_quote!(pub);
-                    ok_lifetimes.visit_type_mut(&mut field.ty);
-                }
-                let ok_generics = generics(&ok_lifetimes.names);
-                let (attrs, _) = data_attrs(ok_attrs, false)?;
-                quote!(#attrs pub struct Ok #ok_generics { #fields })
-            }
-            ret => {
-                let mut ty: syn::Type = match ret {
-                    syn::ReturnType::Type(_, ty) => (**ty).clone(),
-                    _ => syn::parse_quote!(()),
+                let definition = if m.mac.path.is_ident("Struct") {
+                    quote!(pub struct Ok { #body })
+                } else {
+                    quote!(pub enum Ok { #body })
                 };
-                if let syn::Type::Macro(mac) = &ty
-                    && mac.mac.path.is_ident("ok")
-                {
-                    let parser = |input: ParseStream| {
-                        let attrs = syn::Attribute::parse_outer(input)?;
-                        let ty = input.parse::<syn::Type>()?;
-                        Ok((attrs, ty))
-                    };
-                    let (attrs, inner) = parser.parse2(mac.mac.tokens.clone())?;
-                    ok_attrs.extend(attrs);
-                    ty = inner;
+                let mut definition: syn::DeriveInput = syn::parse2(definition)?;
+                match &mut definition.data {
+                    syn::Data::Struct(data) => {
+                        // Service fields are public without requiring callers to spell `pub`.
+                        for field in &mut data.fields {
+                            field.vis = syn::parse_quote!(pub);
+                        }
+                        ok_lifetimes.visit_fields_mut(&mut data.fields);
+                    }
+                    syn::Data::Enum(data) => {
+                        for variant in &mut data.variants {
+                            ok_lifetimes.visit_fields_mut(&mut variant.fields);
+                        }
+                    }
+                    syn::Data::Union(_) => unreachable!(),
                 }
-                ok_lifetimes.visit_type_mut(&mut ty);
+                definition.generics = syn::parse2(generics(&ok_lifetimes.names))?;
+                let (attrs, _) = data_attrs(ok_attrs, false)?;
+                quote!(#attrs #definition)
+            }
+            ty => {
+                ok_lifetimes.visit_type_mut(ty);
                 let ok_generics = generics(&ok_lifetimes.names);
                 let custom_serde = ok_attrs.iter().any(|a| a.path().is_ident("serde"));
                 let (attrs, serde) = data_attrs(ok_attrs, false)?;
@@ -443,6 +387,8 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             pub mod #ident {
                 #[allow(unused_imports)]
                 use super::*;
+                #[allow(unused_imports)]
+                use super::#ident as this;
                 #(#embedded)*
                 #args_attrs
                 pub struct Args #args_generics { #(#fields),* }
@@ -457,13 +403,21 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             fn #ident #args_generics (&mut self) -> impl ::eva::handling::CallStep<#ident::Args #args_generics, Output = #output>;
         });
         clients.push(quote! {
-            #(#method_attrs)*
-            #[allow(clippy::too_many_arguments)]
-            pub fn #ident #args_generics (&mut self, #(#params),*) -> impl ::eva::fut::Fut<Output = #output> {
-                let mut step = self.0.#ident();
-                let args = #ident::Args { #(#values),* };
-                async move { ::eva::handling::CallStep::call(&mut step, args).await }
-            }
+            // An import per method resolves `this` in its signature, including macro inputs.
+            // The anonymous const adds no module level, preserving `self` and `super` paths.
+            const _: () = {
+                #[allow(unused_imports)]
+                use self::#ident as this;
+                impl<S: Trait> Client<S> {
+                    #(#method_attrs)*
+                    #[allow(clippy::too_many_arguments)]
+                    pub fn #ident #args_generics (&mut self, #(#params),*) -> impl ::eva::fut::Fut<Output = #output> {
+                        let mut step = self.0.#ident();
+                        let args = #ident::Args { #(#values),* };
+                        async move { ::eva::handling::CallStep::call(&mut step, args).await }
+                    }
+                }
+            };
         });
         let lifetime_names = &lifetimes.names;
         entries.push(quote! {
@@ -519,7 +473,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 pub fn into_inner(self) -> S { self.0 }
                 pub fn inner_mut(&mut self) -> &mut impl Trait where S: Trait { &mut self.0 }
             }
-            impl<S: Trait> Client<S> { #(#clients)* }
+            #(#clients)*
             #[doc(hidden)]
             #[macro_export]
             macro_rules! #export {

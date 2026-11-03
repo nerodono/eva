@@ -15,22 +15,18 @@ pub mod contract {
     #[service(export)]
     pub trait Authors {
         #[errors(Invalid, NotFound(Missing))]
-        fn get(
-            id: u64,
-        ) -> ok!(
-            #[data(copy)]
-            u64
-        );
+        #[ok(data(copy))]
+        fn get(id: u64) -> u64;
 
         #[flags(write)]
-        fn create(name: &str) -> ok! { id: u64, name: String };
+        fn create(name: &str) -> Struct! { id: u64, name: String };
     }
 
     #[service]
     pub trait Health {
         fn ping() -> eva::True;
 
-        fn status() -> ok! {
+        fn status() -> Struct! {
             #![data(copy)]
             #![derive(Default)]
             #![serde(rename_all = "camelCase")]
@@ -52,10 +48,8 @@ pub mod more {
         #[errors(Invalid)]
         fn checked();
 
-        fn raw() -> ok!(
-            #[data(not(serde, schemars))]
-            u64
-        );
+        #[ok(data(not(serde, schemars)))]
+        fn raw() -> u64;
     }
 }
 
@@ -310,10 +304,16 @@ fn generated_types_preserve_named_arguments_and_transparent_successes() {
 mod embedded {
     use eva::service;
 
+    macro_rules! ty {
+        ($ty:ty) => {
+            $ty
+        };
+    }
+
     #[service(export(echo))]
     pub(crate) trait Values {
-        #[errors(Absent(this![Missing]))]
-        fn echo(value: this![Value<i32>]) -> ok! { value: this![Value<i32>] };
+        #[errors(Absent(this::Missing))]
+        fn echo(value: this::Value<i32>) -> Struct! { value: this::Value<i32> };
         embed! {
             #[eva::data]
             pub struct Value<T>(pub T);
@@ -322,10 +322,16 @@ mod embedded {
             pub struct Missing;
         }
 
-        fn wrap(value: Option<this![Value<i32>]>) -> this![Value<i32>];
+        fn wrap(value: Option<ty!(this::nested::Value)>) -> ty!(this::nested::Value);
         embed! {
             #[eva::data]
             pub struct Value<T>(pub T);
+
+            pub mod nested {
+                use super::this;
+
+                pub type Value = this::Value<i32>;
+            }
         }
     }
 }
@@ -409,6 +415,138 @@ fn error_aliases_preserve_conversions_display_and_serialization() {
         serde_json::from_str::<get::Err>(&json).unwrap(),
         get::Err::NotFound(_)
     ));
+}
+
+mod inline_responses {
+    use super::{CallStep, run, step};
+    use eva::handling::Endpoint;
+
+    #[eva::service(export)]
+    pub trait Values {
+        fn inspect<'a>(
+            value: &'a str,
+        ) -> Enum! {
+            #![data(copy)]
+            #![derive(Default)]
+            #![serde(rename_all = "snake_case")]
+
+            /// A response with a named field.
+            Record {
+                #[serde(rename = "text")]
+                value: &'a str,
+            },
+            Tuple(#[serde(borrow)] &'a str),
+            #[default]
+            #[serde(rename = "empty")]
+            Simple,
+            #[cfg(any())]
+            Disabled(Undefined),
+        };
+
+        fn record<'a>(
+            value: &'a str,
+        ) -> Struct! {
+            #![data(copy)]
+
+            #[serde(rename = "text", default = "this::default_value")]
+            value: &'a str,
+        };
+        embed! {
+            fn default_value() -> &'static str {
+                "default"
+            }
+        }
+
+        fn type_of_num(
+            num: i8,
+        ) -> Enum! {
+            #![data(copy)]
+            #![repr(i8)]
+
+            Even = 2,
+            Odd = 3,
+        };
+    }
+
+    #[eva::endpoint(Values::inspect)]
+    async fn Inspect<'a>(_state: (), args: this::Args<'a>) -> this::Output<'a> {
+        Ok(match args.value {
+            "" => this::Ok::Simple,
+            "tuple" => this::Ok::Tuple(args.value),
+            value => this::Ok::Record { value },
+        })
+    }
+
+    struct Backend;
+
+    impl Values::Trait for Backend {
+        fn inspect<'a>(
+            &mut self,
+        ) -> impl CallStep<inspect::Args<'a>, Output = Values::Result<inspect::Ok<'a>, inspect::Err>>
+        {
+            step(|args: inspect::Args<'a>| Inspect.call((), args))
+        }
+
+        fn record<'a>(
+            &mut self,
+        ) -> impl CallStep<record::Args<'a>, Output = Values::Result<record::Ok<'a>, record::Err>>
+        {
+            step(async |args: record::Args<'a>| Ok(record::Ok { value: args.value }))
+        }
+
+        fn type_of_num(
+            &mut self,
+        ) -> impl CallStep<type_of_num::Args, Output = Values::Result<type_of_num::Ok, type_of_num::Err>>
+        {
+            step(async |args: type_of_num::Args| {
+                Ok(if args.num % 2 == 0 {
+                    type_of_num::Ok::Even
+                } else {
+                    type_of_num::Ok::Odd
+                })
+            })
+        }
+    }
+
+    #[test]
+    fn inline_responses_preserve_borrows_attributes_and_variant_shapes() {
+        let text = String::from("borrowed response");
+        let mut client = Values::Client::new(Backend);
+        let record = run(client.inspect(&text)).unwrap();
+        assert_eq!(record, inspect::Ok::Record { value: &text });
+        let copy = record;
+        assert_eq!(record, copy);
+        let tuple = run(client.inspect("tuple")).unwrap();
+        assert_eq!(tuple, inspect::Ok::Tuple("tuple"));
+        assert_eq!(run(client.inspect("")).unwrap(), inspect::Ok::default());
+        for (value, expected) in [
+            (record, serde_json::json!({ "record": { "text": text } })),
+            (tuple, serde_json::json!({ "tuple": "tuple" })),
+            (inspect::Ok::Simple, serde_json::json!("empty")),
+        ] {
+            let json = serde_json::to_string(&value).unwrap();
+            assert_eq!(serde_json::to_value(value).unwrap(), expected);
+            assert_eq!(
+                serde_json::from_str::<inspect::Ok<'_>>(&json).unwrap(),
+                value
+            );
+        }
+
+        let record = run(client.record(&text)).unwrap();
+        assert_eq!(record.value, text);
+        assert_eq!(
+            serde_json::to_value(record).unwrap(),
+            serde_json::json!({ "text": text })
+        );
+        assert_eq!(
+            serde_json::from_str::<record::Ok<'_>>("{}").unwrap().value,
+            "default"
+        );
+        assert_eq!(run(client.type_of_num(-2)).unwrap(), type_of_num::Ok::Even);
+        assert_eq!(run(client.type_of_num(3)).unwrap(), type_of_num::Ok::Odd);
+        assert_eq!(type_of_num::Ok::Even as i8, 2);
+        assert_eq!(type_of_num::Ok::Odd as i8, 3);
+    }
 }
 
 pub(crate) use custom_result::for_each_custom_endpoint;

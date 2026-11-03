@@ -1,0 +1,11 @@
+error: response lifetime must occur in an argument
+ --> tests/ui/service/response-lifetime.rs:3:39
+  |
+3 |     fn get<'a>() -> Struct! { value: &'a str };
+  |                                       ^^
+
+error: response lifetime must occur in an argument
+ --> tests/ui/service/response-lifetime.rs:8:46
+  |
+8 |     fn get<'a>() -> Enum! { Record { value: &'a str }, Tuple(&'a str), Simple };
+  |                                              ^^
