@@ -1,0 +1,34 @@
+[package]
+name = "eva-core"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+get_time_test = []
+
+[dependencies]
+eva-data = { path = "../data", features = ["rand"] }
+eva-core-macros = { path = "macros" }
+eva-utils = { path = "../utils" }
+serde.workspace = true
+trait-set.workspace = true
+compact_str.workspace = true
+paste.workspace = true
+rand.workspace = true
+rand_xoshiro.workspace = true
+hashbrown.workspace = true
+ahash.workspace = true
+perfect-derive.workspace = true
+seq-macro.workspace = true
+bytesize.workspace = true
+bytes.workspace = true
+url.workspace = true
+blake3.workspace = true
+either.workspace = true
+humantime.workspace = true
+schemars = { workspace = true, features = ["bytes1", "url2"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+postcard.workspace = true

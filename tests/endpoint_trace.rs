@@ -1,5 +1,5 @@
 //! Tracing behavior of both endpoint forms, enabled with `--features enable-tracing`.
-#![cfg(feature = "enable-tracing")]
+#![cfg(all(feature = "handlers", feature = "enable-tracing"))]
 #![deny(warnings)]
 
 use std::{
@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use eva::{endpoint, handling::Endpoint};
+use eva::{endpoint, handlers::Endpoint};
 use fastrace::{
     Span,
     collector::{Config, Reporter, SpanContext, SpanRecord},

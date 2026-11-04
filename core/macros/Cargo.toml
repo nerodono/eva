@@ -1,0 +1,15 @@
+[package]
+name = "eva-core-macros"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+eva-macros-common = { path = "../../macros-common", features = ["auto-impl"] }
+
+[dev-dependencies]
+eva = { path = "../.." }
+trybuild.workspace = true

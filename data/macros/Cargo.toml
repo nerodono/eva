@@ -1,0 +1,20 @@
+[package]
+name = "eva-data-macros"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+heck.workspace = true
+eva-macros-common = { path = "../../macros-common", features = ["data"] }
+
+[dev-dependencies]
+eva = { path = "../.." }
+serde_json.workspace = true
+trybuild.workspace = true

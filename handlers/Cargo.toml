@@ -1,0 +1,15 @@
+[package]
+name = "eva-handlers"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = []
+macros = ["dep:eva-data", "dep:eva-handlers-macros", "dep:fastrace"]
+enable-tracing = ["fastrace?/enable"]
+
+[dependencies]
+eva-data = { path = "../data", optional = true }
+eva-handlers-macros = { path = "macros", optional = true }
+fastrace = { workspace = true, optional = true }

@@ -1,0 +1,32 @@
+[package]
+name = "eva-rt"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = []
+cli = ["dep:clap", "figment"]
+figment = ["dep:figment", "figment/json", "figment/toml", "figment/env"]
+yaml = ["figment", "figment/yaml"]
+logforth = ["dep:logforth"]
+otel = ["logforth", "logforth/append-opentelemetry", "dep:opentelemetry-otlp", "dep:base64"]
+enable-tracing = ["fastrace/enable"]
+
+[dependencies]
+eva-core = { path = "../core" }
+serde.workspace = true
+eyre.workspace = true
+compact_str.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+log.workspace = true
+fastrace.workspace = true
+pin-project-lite.workspace = true
+clap = { workspace = true, optional = true }
+figment = { workspace = true, optional = true }
+logforth = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true

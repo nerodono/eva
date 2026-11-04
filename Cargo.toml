@@ -5,53 +5,49 @@ edition = "2024"
 license.workspace = true
 
 [workspace]
-members = ["macros", "utils"]
+members = ["core", "core/macros", "data", "data/macros", "handlers", "handlers/macros", "rt", "macros-common", "utils"]
+resolver = "3"
 
 [workspace.package]
 license = "WTFPL"
 
-[workspace.dependencies]
-proc-macro2 = "1.0.101"
-syn = "2.0.104"
-quote = "1.0.40"
-
 [features]
-default = []
-cli = [
-    "tokio/rt-multi-thread",
-    "dep:clap",
-    "dep:figment",
-    "figment/json",
-    "figment/toml",
-    "figment/env",
-    "logforth",
-]
-yaml = ["cli", "figment/yaml"]
-enable-tracing = ["fastrace/enable"]
-logforth = ["dep:logforth", "tokio"]
-otel = [
-    "logforth",
-    "logforth/append-opentelemetry",
-    "dep:opentelemetry-otlp",
-    "dep:base64",
-]
-tokio = ["dep:tokio"]
-# Very long running.
-get_time_test = []
+default = ["handlers"]
+handlers = ["dep:eva-handlers"]
+rt = ["dep:eva-rt"]
+cli = ["rt", "eva-rt/cli"]
+figment = ["rt", "eva-rt/figment"]
+yaml = ["rt", "eva-rt/yaml"]
+logforth = ["rt", "eva-rt/logforth"]
+otel = ["rt", "eva-rt/otel"]
+enable-tracing = ["eva-handlers?/enable-tracing", "eva-rt?/enable-tracing"]
+get_time_test = ["eva-core/get_time_test"]
 
-[dependencies.schemars]
+[dependencies]
+eva-core = { path = "core" }
+eva-handlers = { path = "handlers", optional = true, features = ["macros"] }
+eva-rt = { path = "rt", optional = true }
+
+[dev-dependencies]
+fastrace.workspace = true
+
+[workspace.dependencies.schemars]
 version = "1"
 default-features = false
 features = [
     "std",
     "derive",
-    "bytes1",
-    "url2",
 ]
 
-[dependencies]
-eva-macros.path = "./macros"
-eva-utils.path = "./utils"
+[workspace.dependencies]
+proc-macro2 = { version = "1.0.101", features = ["span-locations"] }
+syn = { version = "2.0.104", features = ["full"] }
+quote = "1.0.40"
+heck = "0.5.0"
+proc-macro-crate = "3.4.0"
+serde_json = "1"
+trybuild = "1.0.121"
+postcard = { version = "1.1.1", features = ["use-std"] }
 
 serde = { version = "1.0", features = ["derive"] }
 
@@ -71,20 +67,16 @@ bytes = { version = "1.10.1", features = ["serde"] }
 url = { version = "2.5.4", features = ["serde"] }
 blake3 = "1.8.2"
 
-clap = { version = "4.5.47", features = ["derive"], optional = true }
-figment = { version = "0.10.19", optional = true }
-tokio = { version = "1.47.1", features = ["rt", "sync", "macros", "signal"], optional = true }
+clap = { version = "4.5.47", features = ["derive"] }
+figment = { version = "0.10.19" }
+tokio = { version = "1.47.1", features = ["rt", "sync", "macros", "signal"] }
 eyre = { version = "0.6.12" }
 either = "1.15.0"
 humantime = "2.3.0"
 
 log = { version = "0.4.28", features = ["kv", "std"] }
-logforth = { version = "0.28.1", default-features = false, features = ["append-fastrace", "append-file", "bridge-log", "layout-text", "layout-json", "append-async", "diagnostic-fastrace"], optional = true }
-opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["logs", "http-json", "reqwest-blocking-client"], optional = true }
+logforth = { version = "0.28.1", default-features = false, features = ["append-fastrace", "append-file", "bridge-log", "layout-text", "layout-json", "append-async", "diagnostic-fastrace"] }
+opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["logs", "http-json", "reqwest-blocking-client"] }
 fastrace = "0.7.14"
 pin-project-lite = "0.2.16"
-base64 = { version = "0.22.1", optional = true }
-
-[dev-dependencies]
-serde_json = "1"
-postcard = { version = "1.1.1", features = ["use-std"] }
+base64 = { version = "0.22.1" }

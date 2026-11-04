@@ -1,0 +1,21 @@
+[package]
+name = "eva-data"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = []
+rand = ["dep:rand"]
+
+[dependencies]
+eva-data-macros = { path = "macros" }
+serde.workspace = true
+schemars.workspace = true
+compact_str.workspace = true
+perfect-derive.workspace = true
+trait-set.workspace = true
+rand = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
