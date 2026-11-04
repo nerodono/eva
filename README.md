@@ -1,7 +1,6 @@
 # Eva
 
-Rust building blocks for VienDesu projects: data types, service interfaces, handlers,
-and application startup.
+Rust building blocks: data types, service interfaces, handlers, and application startup.
 
 ```toml
 [dependencies]
