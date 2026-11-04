@@ -33,7 +33,7 @@ impl Builder {
 
     /// A section that must be supplied by a configuration provider or [`Self::set`].
     #[track_caller]
-    pub fn require<T: IsComponentConfig>(self, section: &str) -> Self {
+    pub fn required<T: IsComponentConfig>(self, section: &str) -> Self {
         let missing = section.to_owned();
         self.register::<T>(section, move || {
             eyre::bail!("missing configuration section {missing:?}")

@@ -1,7 +1,7 @@
 //! Application startup, executor configuration, and component lifecycle management.
 //!
-//! [`Runtime`] starts an application; [`Components`] also works inside an existing Tokio
-//! runtime. Command-line parsing is an optional adapter in the `cli` module.
+//! With the `cli` feature, `Runtime` parses command-line arguments and starts an application.
+//! [`Components`] works independently inside an existing Tokio runtime.
 extern crate self as eva_rt;
 
 pub mod cfg;
@@ -10,10 +10,12 @@ pub mod cli;
 pub mod components;
 pub mod executor;
 pub mod logging;
+#[cfg(feature = "cli")]
 mod runtime;
 pub mod signal;
 
 pub use components::Components;
+#[cfg(feature = "cli")]
 pub use runtime::Runtime;
 
 pub use eva_core::data;

@@ -21,12 +21,12 @@ fn typed_config_defaults_required_values_and_overrides() {
 
     assert!(
         Builder::default()
-            .require::<Settings>("worker")
+            .required::<Settings>("worker")
             .build()
             .is_err()
     );
     let supplied = Builder::default()
-        .require::<Settings>("worker")
+        .required::<Settings>("worker")
         .set("worker", Settings { count: 7 })
         .build()
         .unwrap();
@@ -64,7 +64,7 @@ fn config_file(name: &str) -> std::path::PathBuf {
 #[test]
 fn files_merge_in_order() {
     let configs = Builder::default()
-        .require::<Settings>("worker")
+        .required::<Settings>("worker")
         .file(config_file("config.toml"))
         .unwrap()
         .file(config_file("config.json"))
@@ -74,7 +74,7 @@ fn files_merge_in_order() {
     assert_eq!(configs.get::<Settings>().count, 7);
 
     let yaml = Builder::default()
-        .require::<Settings>("worker")
+        .required::<Settings>("worker")
         .file(config_file("config.yaml"));
     #[cfg(feature = "yaml")]
     assert_eq!(yaml.unwrap().build().unwrap().get::<Settings>().count, 9);
@@ -102,7 +102,7 @@ fn environment_overrides_files_but_not_typed_values() {
 
     let builder = || {
         Builder::default()
-            .require::<Settings>("worker")
+            .required::<Settings>("worker")
             .env_prefix("EVA_TEST_CFG_")
             .file(config_file("config.toml"))
             .unwrap()

@@ -1,9 +1,9 @@
-//! Optional clap adapter. Configuration and executor construction live outside CLI.
+//! Command-line arguments for [`crate::Runtime`].
 use std::{ffi::OsString, path::PathBuf};
 
 use clap::Parser;
 
-use crate::{Runtime, cfg::ComponentConfigs};
+use crate::cfg;
 
 #[derive(Debug, Clone, Copy, clap::Args)]
 pub struct NoArgs {}
@@ -27,20 +27,11 @@ impl<A: clap::Args> Args<A> {
         Self::try_parse_from(args)
     }
 
-    /// Apply CLI-selected sources while leaving startup to [`Runtime`].
-    pub fn apply(self, mut runtime: Runtime) -> eyre::Result<(Runtime, A)> {
+    /// Add CLI-selected files to the configuration sources and return application arguments.
+    pub fn apply(self, mut cfg: cfg::Builder) -> eyre::Result<(cfg::Builder, A)> {
         for path in self.config {
-            runtime = runtime.config_file(path)?;
+            cfg = cfg.file(path)?;
         }
-        Ok((runtime, self.args))
+        Ok((cfg, self.args))
     }
-}
-
-/// Parse process arguments and launch an application with the given runtime settings.
-pub fn run<A: clap::Args>(
-    runtime: Runtime,
-    app: impl AsyncFnOnce(A, ComponentConfigs) -> eyre::Result<()>,
-) -> eyre::Result<()> {
-    let (runtime, args) = Args::<A>::parse().apply(runtime)?;
-    runtime.run(async move |configs| app(args, configs).await)
 }

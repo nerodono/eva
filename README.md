@@ -31,8 +31,8 @@ Use `eva` for the umbrella API, or depend on individual crates:
 | [`eva-rt`](rt/) | `Runtime`, `Components`, configuration, and executor setup. |
 
 `eva` includes core and handlers by default. Enable `rt` for `eva::rt`, `cli` for
-command-line parsing, and `logforth` for logging. Use `figment` for JSON/TOML and env
-configuration, `yaml` for YAML, and `otel` for OpenTelemetry logging.
+`Runtime` with command-line parsing, and `logforth` for logging. Use `figment` for
+JSON/TOML and env configuration, `yaml` for YAML, and `otel` for OpenTelemetry logging.
 
 `eva-data/rand` adds random sampling for `#[int]` enums. `eva-core` enables it automatically.
 
