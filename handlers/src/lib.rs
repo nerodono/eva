@@ -4,15 +4,16 @@ extern crate self as eva_handlers;
 #[cfg(feature = "macros")]
 pub use eva_data::data;
 #[cfg(feature = "macros")]
-pub use eva_handlers_macros::{endpoint, export, if_flag, service};
+pub use eva_handlers_macros::{endpoint, export, if_flag, implement, service};
 
 #[cfg(feature = "macros")]
 #[doc(hidden)]
 pub mod _priv {
     pub use crate::{CallStep, Endpoint};
     pub use eva_data::_priv::*;
-    pub use eva_handlers_macros::check_flags;
+    pub use eva_handlers_macros::{check_flags, implement_impls};
     pub use fastrace;
+    pub use paste::paste;
 }
 
 pub use self::{

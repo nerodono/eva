@@ -37,7 +37,7 @@ JSON/TOML and env configuration, `yaml` for YAML, and `otel` for OpenTelemetry l
 `eva-data/rand` adds random sampling for `#[int]` enums. `eva-core` enables it automatically.
 
 Standalone `eva-handlers` has no dependencies by default; enable `macros` for
-`#[service]`, `#[endpoint]`, and `#[export]`. Endpoints add tracing automatically;
+`#[service]`, `#[endpoint]`, `#[export]`, and `#[implement]`. Endpoints add tracing automatically;
 `not(trace)` opts out, and `enable-tracing` enables span collection.
 
 API docs: `cargo doc --open`.

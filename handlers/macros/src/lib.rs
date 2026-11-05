@@ -13,6 +13,7 @@ fn run(
 mod endpoint;
 mod export;
 mod flags;
+mod implement;
 mod service;
 
 /// Turns an async fn into a unit struct that implements `eva_handlers::Endpoint`
@@ -392,6 +393,9 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
 /// `#[export(flags(write, stream))]` declares the method flags the services may use;
 /// any other flag is a compile error at its `#[flags(...)]`.
 ///
+/// Use [`#[implement]`](macro@implement) to implement service traits from a per-method
+/// template. Other consumers, such as transports, can read the full metadata directly:
+///
 /// ```ignore
 /// macro_rules! project {
 ///     ($(
@@ -438,6 +442,72 @@ pub fn service(args: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn export(args: TokenStream, item: TokenStream) -> TokenStream {
     run(args, item, export::expand, |_| TokenStream2::new())
+}
+
+/// Implements exported service traits using a local `macro_rules!` template.
+///
+/// ```ignore
+/// #[eva::implement(for_each_endpoint, Backend)]
+/// macro_rules! bind {
+///     ($this:ident, $accessor:ident, $method:ident, $Args:ty) => {{
+///         let state = &$this.state;
+///         eva::handlers::step(move |args: $Args| async move {
+///             handling::$accessor::[<$method:camel>].call(state, args).await
+///         })
+///     }};
+/// }
+/// ```
+///
+/// The attribute invokes the export's metadata macro and supplies every impl and
+/// method signature. Each method calls the template with `(self, accessor, method, Args)`;
+/// its result must implement `CallStep<Args, Output = Service::Result<Ok, Err>>`.
+/// Capture the receiver as a metavariable: a literal `self` in the template does not
+/// refer to the generated method's receiver. Metavariable names are otherwise arbitrary.
+/// Multiple rules can select middleware by matching an accessor or method name.
+///
+/// Add `#[extra(flags, lifetimes, ok)]` below `#[implement(...)]` to append selected
+/// arguments in the listed order: flags as `[ident, ...]`, method lifetimes as
+/// `['a, ...]`, and the success type. Select only what the template needs:
+///
+/// ```ignore
+/// #[eva::implement(for_each_endpoint, Backend)]
+/// #[extra(flags, ok)]
+/// macro_rules! bind {
+///     ($this:ident, $accessor:ident, $method:ident, $Args:ty,
+///      [$($flag:ident),*], $Ok:ty) => {
+///         // Return a CallStep, selecting its implementation using flags and Ok.
+///     };
+/// }
+/// ```
+///
+/// Every rule's transcriber is wrapped in `paste!`, so `[<$method:camel>]` works
+/// directly. The template and callback remain local to an anonymous const, preserving
+/// the surrounding module's imports and `self::`/`super::` paths. The template is not
+/// available outside the expansion and cannot have `#[macro_export]`.
+///
+/// Declare impl parameters with `for<...>` and bounds inline or in a `where` clause:
+///
+/// ```text
+/// #[implement(for_each_endpoint, for<T: Components> Backend<T>)]
+/// #[implement(api::for_each_endpoint, for<'a, T, const N: usize> Backend<'a, T, N>
+///     where T: Components, T::Storage: Send + Sync)]
+/// ```
+///
+/// Bounds are copied to each impl; defaults are not allowed. Method lifetimes come
+/// from the service and are renamed if they would shadow an impl lifetime.
+/// The runtime path is discovered from `eva-handlers`, then `eva`, respecting Cargo
+/// dependency renames. Standalone `eva-handlers` needs its `macros` feature.
+#[proc_macro_attribute]
+pub fn implement(args: TokenStream, item: TokenStream) -> TokenStream {
+    run(args, item, implement::expand, |_| TokenStream2::new())
+}
+
+#[doc(hidden)]
+#[proc_macro]
+pub fn implement_impls(input: TokenStream) -> TokenStream {
+    implement::impls(input.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 /// Expands to the first block when the flag is in the list, else to the `else` block, if any.
